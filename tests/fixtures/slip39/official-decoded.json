@@ -1,0 +1,1333 @@
+{
+ "generator": "shamir-mnemonic 0.3.0 via tools/client.py share-fixtures",
+ "cases": [
+  {
+   "case": 1,
+   "description": "1. Valid mnemonic without sharing (128 bits)",
+   "mnemonic": "duckling enlarge academic academic agency result length solution fridge kidney coal piece deal husband erode duke ajar critical decision keyboard",
+   "reference": {
+    "identifier": 7945,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 2,
+   "description": "2. Mnemonic with invalid checksum (128 bits)",
+   "mnemonic": "duckling enlarge academic academic agency result length solution fridge kidney coal piece deal husband erode duke ajar critical decision kidney",
+   "reference": {
+    "error": "checksum"
+   }
+  },
+  {
+   "case": 3,
+   "description": "3. Mnemonic with invalid padding (128 bits)",
+   "mnemonic": "duckling enlarge academic academic email result length solution fridge kidney coal piece deal husband erode duke ajar music cargo fitness",
+   "reference": {
+    "error": "padding"
+   }
+  },
+  {
+   "case": 4,
+   "description": "4. Basic sharing 2-of-3 (128 bits)",
+   "mnemonic": "shadow pistol academic always adequate wildlife fancy gross oasis cylinder mustang wrist rescue view short owner flip making coding armed",
+   "reference": {
+    "identifier": 25653,
+    "extendable": false,
+    "iterationExponent": 2,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 4,
+   "description": "4. Basic sharing 2-of-3 (128 bits)",
+   "mnemonic": "shadow pistol academic acid actress prayer class unknown daughter sweater depict flip twice unkind craft early superior advocate guest smoking",
+   "reference": {
+    "identifier": 25653,
+    "extendable": false,
+    "iterationExponent": 2,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 5,
+   "description": "5. Basic sharing 2-of-3 (128 bits)",
+   "mnemonic": "shadow pistol academic always adequate wildlife fancy gross oasis cylinder mustang wrist rescue view short owner flip making coding armed",
+   "reference": {
+    "identifier": 25653,
+    "extendable": false,
+    "iterationExponent": 2,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 6,
+   "description": "6. Mnemonics with different identifiers (128 bits)",
+   "mnemonic": "adequate smoking academic acid debut wine petition glen cluster slow rhyme slow simple epidemic rumor junk tracks treat olympic tolerate",
+   "reference": {
+    "identifier": 282,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 6,
+   "description": "6. Mnemonics with different identifiers (128 bits)",
+   "mnemonic": "adequate stay academic agency agency formal party ting frequent learn upstairs remember smear leaf damage anatomy ladle market hush corner",
+   "reference": {
+    "identifier": 283,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 7,
+   "description": "7. Mnemonics with different iteration exponents (128 bits)",
+   "mnemonic": "peasant leaves academic acid desert exact olympic math alive axle trial tackle drug deny decent smear dominant desert bucket remind",
+   "reference": {
+    "identifier": 20976,
+    "extendable": false,
+    "iterationExponent": 3,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 7,
+   "description": "7. Mnemonics with different iteration exponents (128 bits)",
+   "mnemonic": "peasant leader academic agency cultural blessing percent network envelope medal junk primary human pumps jacket fragment payroll ticket evoke voice",
+   "reference": {
+    "identifier": 20976,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 8,
+   "description": "8. Mnemonics with mismatching group thresholds (128 bits)",
+   "mnemonic": "liberty category beard echo animal fawn temple briefing math username various wolf aviation fancy visual holy thunder yelp helpful payment",
+   "reference": {
+    "identifier": 16740,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 2,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 8,
+   "description": "8. Mnemonics with mismatching group thresholds (128 bits)",
+   "mnemonic": "liberty category beard email beyond should fancy romp founder easel pink holy hairy romp loyalty material victim owner toxic custody",
+   "reference": {
+    "identifier": 16740,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 2,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 8,
+   "description": "8. Mnemonics with mismatching group thresholds (128 bits)",
+   "mnemonic": "liberty category academic easy being hazard crush diminish oral lizard reaction cluster force dilemma deploy force club veteran expect photo",
+   "reference": {
+    "identifier": 16740,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 2,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 9,
+   "description": "9. Mnemonics with mismatching group counts (128 bits)",
+   "mnemonic": "average senior academic leaf broken teacher expect surface hour capture obesity desire negative dynamic dominant pistol mineral mailman iris aide",
+   "reference": {
+    "identifier": 1945,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 3,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 9,
+   "description": "9. Mnemonics with mismatching group counts (128 bits)",
+   "mnemonic": "average senior academic agency curious pants blimp spew clothes slice script dress wrap firm shaft regular slavery negative theater roster",
+   "reference": {
+    "identifier": 1945,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 10,
+   "description": "10. Mnemonics with greater group threshold than group counts (128 bits)",
+   "mnemonic": "music husband acrobat acid artist finance center either graduate swimming object bike medical clothes station aspect spider maiden bulb welcome",
+   "reference": {
+    "error": "group-threshold"
+   }
+  },
+  {
+   "case": 10,
+   "description": "10. Mnemonics with greater group threshold than group counts (128 bits)",
+   "mnemonic": "music husband acrobat agency advance hunting bike corner density careful material civil evil tactics remind hawk discuss hobo voice rainbow",
+   "reference": {
+    "error": "group-threshold"
+   }
+  },
+  {
+   "case": 10,
+   "description": "10. Mnemonics with greater group threshold than group counts (128 bits)",
+   "mnemonic": "music husband beard academic black tricycle clock mayor estimate level photo episode exclude ecology papa source amazing salt verify divorce",
+   "reference": {
+    "error": "group-threshold"
+   }
+  },
+  {
+   "case": 11,
+   "description": "11. Mnemonics with duplicate member indices (128 bits)",
+   "mnemonic": "device stay academic always dive coal antenna adult black exceed stadium herald advance soldier busy dryer daughter evaluate minister laser",
+   "reference": {
+    "identifier": 6907,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 11,
+   "description": "11. Mnemonics with duplicate member indices (128 bits)",
+   "mnemonic": "device stay academic always dwarf afraid robin gravity crunch adjust soul branch walnut coastal dream costume scholar mortgage mountain pumps",
+   "reference": {
+    "identifier": 6907,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 12,
+   "description": "12. Mnemonics with mismatching member thresholds (128 bits)",
+   "mnemonic": "hour painting academic academic device formal evoke guitar random modern justice filter withdraw trouble identify mailman insect general cover oven",
+   "reference": {
+    "identifier": 14196,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 12,
+   "description": "12. Mnemonics with mismatching member thresholds (128 bits)",
+   "mnemonic": "hour painting academic agency artist again daisy capital beaver fiber much enjoy suitable symbolic identify photo editor romp float echo",
+   "reference": {
+    "identifier": 14196,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 13,
+   "description": "13. Mnemonics giving an invalid digest (128 bits)",
+   "mnemonic": "guilt walnut academic acid deliver remove equip listen vampire tactics nylon rhythm failure husband fatigue alive blind enemy teaspoon rebound",
+   "reference": {
+    "identifier": 13375,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 13,
+   "description": "13. Mnemonics giving an invalid digest (128 bits)",
+   "mnemonic": "guilt walnut academic agency brave hamster hobo declare herd taste alpha slim criminal mild arcade formal romp branch pink ambition",
+   "reference": {
+    "identifier": 13375,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 14,
+   "description": "14. Insufficient number of groups (128 bits, case 1)",
+   "mnemonic": "eraser senior beard romp adorn nuclear spill corner cradle style ancient family general leader ambition exchange unusual garlic promise voice",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 15,
+   "description": "15. Insufficient number of groups (128 bits, case 2)",
+   "mnemonic": "eraser senior decision scared cargo theory device idea deliver modify curly include pancake both news skin realize vitamins away join",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 15,
+   "description": "15. Insufficient number of groups (128 bits, case 2)",
+   "mnemonic": "eraser senior decision roster beard treat identify grumpy salt index fake aviation theater cubic bike cause research dragon emphasis counter",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 16,
+   "description": "16. Threshold number of groups, but insufficient number of members in one group (128 bits)",
+   "mnemonic": "eraser senior decision shadow artist work morning estate greatest pipeline plan ting petition forget hormone flexible general goat admit surface",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 16,
+   "description": "16. Threshold number of groups, but insufficient number of members in one group (128 bits)",
+   "mnemonic": "eraser senior beard romp adorn nuclear spill corner cradle style ancient family general leader ambition exchange unusual garlic promise voice",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 17,
+   "description": "17. Threshold number of groups and members in each group (128 bits, case 1)",
+   "mnemonic": "eraser senior decision roster beard treat identify grumpy salt index fake aviation theater cubic bike cause research dragon emphasis counter",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 17,
+   "description": "17. Threshold number of groups and members in each group (128 bits, case 1)",
+   "mnemonic": "eraser senior ceramic snake clay various huge numb argue hesitate auction category timber browser greatest hanger petition script leaf pickup",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 2,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 4,
+    "memberThreshold": 3,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 17,
+   "description": "17. Threshold number of groups and members in each group (128 bits, case 1)",
+   "mnemonic": "eraser senior ceramic shaft dynamic become junior wrist silver peasant force math alto coal amazing segment yelp velvet image paces",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 2,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 2,
+    "memberThreshold": 3,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 17,
+   "description": "17. Threshold number of groups and members in each group (128 bits, case 1)",
+   "mnemonic": "eraser senior ceramic round column hawk trust auction smug shame alive greatest sheriff living perfect corner chest sled fumes adequate",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 2,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 3,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 17,
+   "description": "17. Threshold number of groups and members in each group (128 bits, case 1)",
+   "mnemonic": "eraser senior decision smug corner ruin rescue cubic angel tackle skin skunk program roster trash rumor slush angel flea amazing",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 4,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 18,
+   "description": "18. Threshold number of groups and members in each group (128 bits, case 2)",
+   "mnemonic": "eraser senior decision smug corner ruin rescue cubic angel tackle skin skunk program roster trash rumor slush angel flea amazing",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 4,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 18,
+   "description": "18. Threshold number of groups and members in each group (128 bits, case 2)",
+   "mnemonic": "eraser senior beard romp adorn nuclear spill corner cradle style ancient family general leader ambition exchange unusual garlic promise voice",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 18,
+   "description": "18. Threshold number of groups and members in each group (128 bits, case 2)",
+   "mnemonic": "eraser senior decision scared cargo theory device idea deliver modify curly include pancake both news skin realize vitamins away join",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 19,
+   "description": "19. Threshold number of groups and members in each group (128 bits, case 3)",
+   "mnemonic": "eraser senior beard romp adorn nuclear spill corner cradle style ancient family general leader ambition exchange unusual garlic promise voice",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 19,
+   "description": "19. Threshold number of groups and members in each group (128 bits, case 3)",
+   "mnemonic": "eraser senior acrobat romp bishop medical gesture pumps secret alive ultimate quarter priest subject class dictate spew material endless market",
+   "reference": {
+    "identifier": 9497,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 20,
+   "description": "20. Valid mnemonic without sharing (256 bits)",
+   "mnemonic": "theory painting academic academic armed sweater year military elder discuss acne wildlife boring employer fused large satoshi bundle carbon diagnose anatomy hamster leaves tracks paces beyond phantom capital marvel lips brave detect luck",
+   "reference": {
+    "identifier": 29172,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 21,
+   "description": "21. Mnemonic with invalid checksum (256 bits)",
+   "mnemonic": "theory painting academic academic armed sweater year military elder discuss acne wildlife boring employer fused large satoshi bundle carbon diagnose anatomy hamster leaves tracks paces beyond phantom capital marvel lips brave detect lunar",
+   "reference": {
+    "error": "checksum"
+   }
+  },
+  {
+   "case": 22,
+   "description": "22. Mnemonic with invalid padding (256 bits)",
+   "mnemonic": "theory painting academic academic campus sweater year military elder discuss acne wildlife boring employer fused large satoshi bundle carbon diagnose anatomy hamster leaves tracks paces beyond phantom capital marvel lips facility obtain sister",
+   "reference": {
+    "error": "padding"
+   }
+  },
+  {
+   "case": 23,
+   "description": "23. Basic sharing 2-of-3 (256 bits)",
+   "mnemonic": "humidity disease academic always aluminum jewelry energy woman receiver strategy amuse duckling lying evidence network walnut tactics forget hairy rebound impulse brother survive clothes stadium mailman rival ocean reward venture always armed unwrap",
+   "reference": {
+    "identifier": 14279,
+    "extendable": false,
+    "iterationExponent": 2,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 23,
+   "description": "23. Basic sharing 2-of-3 (256 bits)",
+   "mnemonic": "humidity disease academic agency actress jacket gross physics cylinder solution fake mortgage benefit public busy prepare sharp friar change work slow purchase ruler again tricycle involve viral wireless mixture anatomy desert cargo upgrade",
+   "reference": {
+    "identifier": 14279,
+    "extendable": false,
+    "iterationExponent": 2,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 24,
+   "description": "24. Basic sharing 2-of-3 (256 bits)",
+   "mnemonic": "humidity disease academic always aluminum jewelry energy woman receiver strategy amuse duckling lying evidence network walnut tactics forget hairy rebound impulse brother survive clothes stadium mailman rival ocean reward venture always armed unwrap",
+   "reference": {
+    "identifier": 14279,
+    "extendable": false,
+    "iterationExponent": 2,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 25,
+   "description": "25. Mnemonics with different identifiers (256 bits)",
+   "mnemonic": "smear husband academic acid deadline scene venture distance dive overall parking bracelet elevator justice echo burning oven chest duke nylon",
+   "reference": {
+    "identifier": 26510,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 25,
+   "description": "25. Mnemonics with different identifiers (256 bits)",
+   "mnemonic": "smear isolate academic agency alpha mandate decorate burden recover guard exercise fatal force syndrome fumes thank guest drift dramatic mule",
+   "reference": {
+    "identifier": 26511,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 26,
+   "description": "26. Mnemonics with different iteration exponents (256 bits)",
+   "mnemonic": "finger trash academic acid average priority dish revenue academic hospital spirit western ocean fact calcium syndrome greatest plan losing dictate",
+   "reference": {
+    "identifier": 11005,
+    "extendable": false,
+    "iterationExponent": 3,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 26,
+   "description": "26. Mnemonics with different iteration exponents (256 bits)",
+   "mnemonic": "finger traffic academic agency building lilac deny paces subject threaten diploma eclipse window unknown health slim piece dragon focus smirk",
+   "reference": {
+    "identifier": 11005,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 27,
+   "description": "27. Mnemonics with mismatching group thresholds (256 bits)",
+   "mnemonic": "flavor pink beard echo depart forbid retreat become frost helpful juice unwrap reunion credit math burning spine black capital lair",
+   "reference": {
+    "identifier": 11253,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 2,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 27,
+   "description": "27. Mnemonics with mismatching group thresholds (256 bits)",
+   "mnemonic": "flavor pink beard email diet teaspoon freshman identify document rebound cricket prune headset loyalty smell emission skin often square rebound",
+   "reference": {
+    "identifier": 11253,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 2,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 27,
+   "description": "27. Mnemonics with mismatching group thresholds (256 bits)",
+   "mnemonic": "flavor pink academic easy credit cage raisin crazy closet lobe mobile become drink human tactics valuable hand capture sympathy finger",
+   "reference": {
+    "identifier": 11253,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 2,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 28,
+   "description": "28. Mnemonics with mismatching group counts (256 bits)",
+   "mnemonic": "column flea academic leaf debut extra surface slow timber husky lawsuit game behavior husky swimming already paper episode tricycle scroll",
+   "reference": {
+    "identifier": 5067,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 3,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 28,
+   "description": "28. Mnemonics with mismatching group counts (256 bits)",
+   "mnemonic": "column flea academic agency blessing garbage party software stadium verify silent umbrella therapy decorate chemical erode dramatic eclipse replace apart",
+   "reference": {
+    "identifier": 5067,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 29,
+   "description": "29. Mnemonics with greater group threshold than group counts (256 bits)",
+   "mnemonic": "smirk pink acrobat acid auction wireless impulse spine sprinkle fortune clogs elbow guest hush loyalty crush dictate tracks airport talent",
+   "reference": {
+    "error": "group-threshold"
+   }
+  },
+  {
+   "case": 29,
+   "description": "29. Mnemonics with greater group threshold than group counts (256 bits)",
+   "mnemonic": "smirk pink acrobat agency dwarf emperor ajar organize legs slice harvest plastic dynamic style mobile float bulb health coding credit",
+   "reference": {
+    "error": "group-threshold"
+   }
+  },
+  {
+   "case": 29,
+   "description": "29. Mnemonics with greater group threshold than group counts (256 bits)",
+   "mnemonic": "smirk pink beard academic alto strategy carve shame language rapids ruin smart location spray training acquire eraser endorse submit peaceful",
+   "reference": {
+    "error": "group-threshold"
+   }
+  },
+  {
+   "case": 30,
+   "description": "30. Mnemonics with duplicate member indices (256 bits)",
+   "mnemonic": "fishing recover academic always device craft trend snapshot gums skin downtown watch device sniff hour clock public maximum garlic born",
+   "reference": {
+    "identifier": 11127,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 30,
+   "description": "30. Mnemonics with duplicate member indices (256 bits)",
+   "mnemonic": "fishing recover academic always aircraft view software cradle fangs amazing package plastic evaluate intend penalty epidemic anatomy quarter cage apart",
+   "reference": {
+    "identifier": 11127,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 31,
+   "description": "31. Mnemonics with mismatching member thresholds (256 bits)",
+   "mnemonic": "evoke garden academic academic answer wolf scandal modern warmth station devote emerald market physics surface formal amazing aquatic gesture medical",
+   "reference": {
+    "identifier": 9772,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 31,
+   "description": "31. Mnemonics with mismatching member thresholds (256 bits)",
+   "mnemonic": "evoke garden academic agency deal revenue knit reunion decrease magazine flexible company goat repair alarm military facility clogs aide mandate",
+   "reference": {
+    "identifier": 9772,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 32,
+   "description": "32. Mnemonics giving an invalid digest (256 bits)",
+   "mnemonic": "river deal academic acid average forbid pistol peanut custody bike class aunt hairy merit valid flexible learn ajar very easel",
+   "reference": {
+    "identifier": 24454,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 32,
+   "description": "32. Mnemonics giving an invalid digest (256 bits)",
+   "mnemonic": "river deal academic agency camera amuse lungs numb isolate display smear piece traffic worthy year patrol crush fact fancy emission",
+   "reference": {
+    "identifier": 24454,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 33,
+   "description": "33. Insufficient number of groups (256 bits, case 1)",
+   "mnemonic": "wildlife deal beard romp alcohol space mild usual clothes union nuclear testify course research heat listen task location thank hospital slice smell failure fawn helpful priest ambition average recover lecture process dough stadium",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 34,
+   "description": "34. Insufficient number of groups (256 bits, case 2)",
+   "mnemonic": "wildlife deal decision scared acne fatal snake paces obtain election dryer dominant romp tactics railroad marvel trust helpful flip peanut theory theater photo luck install entrance taxi step oven network dictate intimate listen",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 34,
+   "description": "34. Insufficient number of groups (256 bits, case 2)",
+   "mnemonic": "wildlife deal decision smug ancestor genuine move huge cubic strategy smell game costume extend swimming false desire fake traffic vegan senior twice timber submit leader payroll fraction apart exact forward pulse tidy install",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 4,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 35,
+   "description": "35. Threshold number of groups, but insufficient number of members in one group (256 bits)",
+   "mnemonic": "wildlife deal decision shadow analysis adjust bulb skunk muscle mandate obesity total guitar coal gravity carve slim jacket ruin rebuild ancestor numerous hour mortgage require herd maiden public ceiling pecan pickup shadow club",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 35,
+   "description": "35. Threshold number of groups, but insufficient number of members in one group (256 bits)",
+   "mnemonic": "wildlife deal beard romp alcohol space mild usual clothes union nuclear testify course research heat listen task location thank hospital slice smell failure fawn helpful priest ambition average recover lecture process dough stadium",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 36,
+   "description": "36. Threshold number of groups and members in each group (256 bits, case 1)",
+   "mnemonic": "wildlife deal ceramic round aluminum pitch goat racism employer miracle percent math decision episode dramatic editor lily prospect program scene rebuild display sympathy have single mustang junction relate often chemical society wits estate",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 2,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 3,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 36,
+   "description": "36. Threshold number of groups and members in each group (256 bits, case 1)",
+   "mnemonic": "wildlife deal decision scared acne fatal snake paces obtain election dryer dominant romp tactics railroad marvel trust helpful flip peanut theory theater photo luck install entrance taxi step oven network dictate intimate listen",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 36,
+   "description": "36. Threshold number of groups and members in each group (256 bits, case 1)",
+   "mnemonic": "wildlife deal ceramic scatter argue equip vampire together ruin reject literary rival distance aquatic agency teammate rebound false argue miracle stay again blessing peaceful unknown cover beard acid island language debris industry idle",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 2,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 1,
+    "memberThreshold": 3,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 36,
+   "description": "36. Threshold number of groups and members in each group (256 bits, case 1)",
+   "mnemonic": "wildlife deal ceramic snake agree voter main lecture axis kitchen physics arcade velvet spine idea scroll promise platform firm sharp patrol divorce ancestor fantasy forbid goat ajar believe swimming cowboy symbolic plastic spelling",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 2,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 4,
+    "memberThreshold": 3,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 36,
+   "description": "36. Threshold number of groups and members in each group (256 bits, case 1)",
+   "mnemonic": "wildlife deal decision shadow analysis adjust bulb skunk muscle mandate obesity total guitar coal gravity carve slim jacket ruin rebuild ancestor numerous hour mortgage require herd maiden public ceiling pecan pickup shadow club",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 37,
+   "description": "37. Threshold number of groups and members in each group (256 bits, case 2)",
+   "mnemonic": "wildlife deal decision scared acne fatal snake paces obtain election dryer dominant romp tactics railroad marvel trust helpful flip peanut theory theater photo luck install entrance taxi step oven network dictate intimate listen",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 1,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 37,
+   "description": "37. Threshold number of groups and members in each group (256 bits, case 2)",
+   "mnemonic": "wildlife deal beard romp alcohol space mild usual clothes union nuclear testify course research heat listen task location thank hospital slice smell failure fawn helpful priest ambition average recover lecture process dough stadium",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 37,
+   "description": "37. Threshold number of groups and members in each group (256 bits, case 2)",
+   "mnemonic": "wildlife deal decision smug ancestor genuine move huge cubic strategy smell game costume extend swimming false desire fake traffic vegan senior twice timber submit leader payroll fraction apart exact forward pulse tidy install",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 3,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 4,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 38,
+   "description": "38. Threshold number of groups and members in each group (256 bits, case 3)",
+   "mnemonic": "wildlife deal beard romp alcohol space mild usual clothes union nuclear testify course research heat listen task location thank hospital slice smell failure fawn helpful priest ambition average recover lecture process dough stadium",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 1,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 38,
+   "description": "38. Threshold number of groups and members in each group (256 bits, case 3)",
+   "mnemonic": "wildlife deal acrobat romp anxiety axis starting require metric flexible geology game drove editor edge screw helpful have huge holy making pitch unknown carve holiday numb glasses survive already tenant adapt goat fangs",
+   "reference": {
+    "identifier": 32134,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 2,
+    "groupCount": 4,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 39,
+   "description": "39. Mnemonic with insufficient length",
+   "mnemonic": "junk necklace academic academic acne isolate join hesitate lunar roster dough calcium chemical ladybug amount mobile glasses verify cylinder",
+   "reference": {
+    "error": "length"
+   }
+  },
+  {
+   "case": 40,
+   "description": "40. Mnemonic with invalid master secret length",
+   "mnemonic": "fraction necklace academic academic award teammate mouse regular testify coding building member verdict purchase blind camera duration email prepare spirit quarter",
+   "reference": {
+    "error": "length"
+   }
+  },
+  {
+   "case": 41,
+   "description": "41. Valid mnemonics which can detect some errors in modular arithmetic",
+   "mnemonic": "herald flea academic cage avoid space trend estate dryer hairy evoke eyebrow improve airline artwork garlic premium duration prevent oven",
+   "reference": {
+    "identifier": 13899,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 7,
+    "memberThreshold": 3,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 41,
+   "description": "41. Valid mnemonics which can detect some errors in modular arithmetic",
+   "mnemonic": "herald flea academic client blue skunk class goat luxury deny presence impulse graduate clay join blanket bulge survive dish necklace",
+   "reference": {
+    "identifier": 13899,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 9,
+    "memberThreshold": 3,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 41,
+   "description": "41. Valid mnemonics which can detect some errors in modular arithmetic",
+   "mnemonic": "herald flea academic acne advance fused brother frozen broken game ranked ajar already believe check install theory angry exercise adult",
+   "reference": {
+    "identifier": 13899,
+    "extendable": false,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 3,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 42,
+   "description": "42. Valid extendable mnemonic without sharing (128 bits)",
+   "mnemonic": "testify swimming academic academic column loyalty smear include exotic bedroom exotic wrist lobe cover grief golden smart junior estimate learn",
+   "reference": {
+    "identifier": 29019,
+    "extendable": true,
+    "iterationExponent": 3,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 43,
+   "description": "43. Extendable basic sharing 2-of-3 (128 bits)",
+   "mnemonic": "enemy favorite academic acid cowboy phrase havoc level response walnut budget painting inside trash adjust froth kitchen learn tidy punish",
+   "reference": {
+    "identifier": 9066,
+    "extendable": true,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 43,
+   "description": "43. Extendable basic sharing 2-of-3 (128 bits)",
+   "mnemonic": "enemy favorite academic always academic sniff script carpet romp kind promise scatter center unfair training emphasis evening belong fake enforce",
+   "reference": {
+    "identifier": 9066,
+    "extendable": true,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 16
+   }
+  },
+  {
+   "case": 44,
+   "description": "44. Valid extendable mnemonic without sharing (256 bits)",
+   "mnemonic": "impulse calcium academic academic alcohol sugar lyrics pajamas column facility finance tension extend space birthday rainbow swimming purple syndrome facility trial warn duration snapshot shadow hormone rhyme public spine counter easy hawk album",
+   "reference": {
+    "identifier": 14691,
+    "extendable": true,
+    "iterationExponent": 3,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 1,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 45,
+   "description": "45. Extendable basic sharing 2-of-3 (256 bits)",
+   "mnemonic": "western apart academic always artist resident briefing sugar woman oven coding club ajar merit pecan answer prisoner artist fraction amount desktop mild false necklace muscle photo wealthy alpha category unwrap spew losing making",
+   "reference": {
+    "identifier": 32065,
+    "extendable": true,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 2,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  },
+  {
+   "case": 45,
+   "description": "45. Extendable basic sharing 2-of-3 (256 bits)",
+   "mnemonic": "western apart academic acid answer ancient auction flip image penalty oasis beaver multiple thunder problem switch alive heat inherit superior teaspoon explain blanket pencil numb lend punish endless aunt garlic humidity kidney observe",
+   "reference": {
+    "identifier": 32065,
+    "extendable": true,
+    "iterationExponent": 0,
+    "groupIndex": 0,
+    "groupThreshold": 1,
+    "groupCount": 1,
+    "memberIndex": 0,
+    "memberThreshold": 2,
+    "valueBytes": 32
+   }
+  }
+ ]
+}

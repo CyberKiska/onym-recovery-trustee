@@ -1,0 +1,32 @@
+[package]
+name = "onym-recovery-trustee"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Reference trustee for the Onym recovery-trustee seat, Shamir (SLIP-0039) profile"
+license = "MIT"
+publish = false
+
+[dependencies]
+# RFC 9180 HPKE with one fixed suite: DHKEM(X25519, HKDF-SHA256), HKDF-SHA256,
+# AES-256-GCM. Defaults (ML-KEM, ChaCha) off.
+hpke = { version = "=0.14.1", default-features = false, features = ["alloc", "getrandom", "x25519", "aes"] }
+# Not called directly: hpke depends on aes-gcm without its `zeroize` feature;
+# naming it here unifies to the same crate with AES/GHASH state cleanup on.
+aes-gcm = { version = "0.11.1", default-features = false, features = ["aes", "zeroize"] }
+ed25519-dalek = "3.0.0"
+sha2 = { version = "0.11.0", default-features = false }
+zeroize = "1.9.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+hex = "0.4"
+time = { version = "0.3.47", features = ["parsing", "formatting"] }
+
+# A panic ends the process: no unwinding past half-done work, no poisoned
+# state left behind. HPKE sealing panics if the OS RNG fails (see crypto.rs).
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

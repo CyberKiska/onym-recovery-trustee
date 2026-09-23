@@ -1,0 +1,6 @@
+# pip install --require-hashes -r tools/requirements.txt
+# SLIP-0039 reference implementation (Trezor, MIT). Used only to generate
+# and decode test fixtures; never a dependency of the trustee service.
+shamir-mnemonic==0.3.0 \
+    --hash=sha256:188c6b5bd00d5e756e12e2b186c3cb7c98ff7ff44df608d4c1d2077f6b6e730f \
+    --hash=sha256:bc04886a1ddfe2a64d8a3ec51abf0f664d98d5b557cc7e78a8ad2d10a1d87438

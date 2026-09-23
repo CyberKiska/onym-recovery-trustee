@@ -1,0 +1,73 @@
+{
+ "generator": "shamir-mnemonic 0.3.0 via tools/client.py share-fixtures",
+ "cases": [
+  {
+   "memberThreshold": 2,
+   "memberCount": 3,
+   "masterSecret": "af3615035795417bc4ec8fb3b769db7b1a0c28762e4aec93f029e54d54b3a1f8",
+   "shares": [
+    "luck leader academic acid argue buyer afraid spill jewelry soldier capacity endless aircraft presence cubic roster pacific crucial category fancy numb glad endorse smell cards hearing liberty username impact erode ceramic spirit custody",
+    "luck leader academic agency animal bumpy smear deploy antenna vitamins segment yield teammate join jewelry music idle sniff beaver license credit practice nuclear paces humidity learn nylon bucket rapids belong carbon budget review",
+    "luck leader academic always acrobat belong leader improve cubic strategy purple describe smart album losing alien thank flip elegant valuable writing valuable thank afraid wisdom wine pupal exercise welcome window punish sled angry"
+   ]
+  },
+  {
+   "memberThreshold": 3,
+   "memberCount": 5,
+   "masterSecret": "acaafaed8b8c97d238a35e5c8d48e288a92d2ddc3a49e62fd3ab5f48d4744955",
+   "shares": [
+    "bulge traffic academic acne antenna modify triumph bulge chubby evening filter salon solution champion rescue style theory season peasant news vocal reward memory cluster cards quantity erode paid grasp library aviation aspect email",
+    "bulge traffic academic agree angel zero eraser numerous center stick glad romantic evaluate brother geology buyer lily regret platform universe triumph exact income empty fragment dwarf debut teacher ending sister script network hospital",
+    "bulge traffic academic amazing alive sharp lair artwork video sunlight elbow jump guest plains pistol shame magazine prospect busy guest bishop strategy diagnose race ceramic lying excuse garbage diet vocal spend webcam hobo",
+    "bulge traffic academic arcade alarm perfect tactics medal voice enlarge inmate alive valid midst image august unfold smell blue carve ambition course shrimp standard goat aircraft dilemma ceiling biology remind camera huge engage",
+    "bulge traffic academic axle animal race shadow grief aquatic item lily adult metric eclipse elephant voice purple fancy fragment royal orbit quick mouse vocal similar smart permit ceiling daughter smart timely window hobo"
+   ]
+  },
+  {
+   "memberThreshold": 2,
+   "memberCount": 16,
+   "masterSecret": "f5e04009c5a88f0ebd61035ef354a8cb1893f161ea01fc72b261e98b197207ec",
+   "shares": [
+    "device husband academic acid alpha silent safari beyond exact secret racism human junk making famous black silent require spill relate criminal method maximum smell parcel keyboard verify wildlife gross making elbow grownup exceed",
+    "device husband academic agency ancient greatest hazard thunder empty rhythm necklace lair hobo exhaust system theory clock pacific garlic python mailman union garden skin episode level frost very often diet remind venture capital",
+    "device husband academic always arcade beam manager width yoga quick ultimate exchange flavor adjust failure mixture rapids injury pile scroll sunlight credit epidemic skunk soldier alto radar trouble marvel indicate trend ceiling shaped",
+    "device husband academic aquatic actress rhythm chemical aquatic vocal shrimp round frequent educate screw symbolic grief flexible fact best slavery justice fawn pickup smear dismiss wealthy bulb tension husband senior behavior railroad nylon",
+    "device husband academic axis acrobat retailer facility ruler cricket guest agency element license fraction fawn husky metric toxic deny elbow join peasant bumpy single usual slavery laden stick pancake valuable triumph empty device",
+    "device husband academic birthday apart behavior webcam diploma class beard corner false mountain package step luck lamp says lobe equip story sympathy view smith bucket deploy species smoking frost exclude beard software gross",
+    "device husband academic brave angry grownup browser corner numb calcium friar general program speak flash vitamins unfair craft either drug lunch broken surprise smirk legal reaction domain shaped evaluate aviation edge adequate puny",
+    "device husband academic buyer alto sheriff prune tackle metric grief husky husband remove born sunlight actress advocate artist vintage diagnose course group deliver sister hand enlarge mortgage sack raspy quarter repeat multiple texture",
+    "device husband academic cause anxiety glance wrap system decent tadpole smell dining oasis trash frozen provide hesitate safari advocate evaluate dream public river sled public flexible victim regular forecast domain welcome moisture class",
+    "device husband academic cleanup alien sister fiction course distance pharmacy thank cluster manual crystal space enforce license ting rebound eclipse oral smart fact slow flea physics forget provide picture location actress already hybrid",
+    "device husband academic costume academic relate radar dilemma likely predator national blimp reaction garlic froth diagnose away aquatic husky desktop slice ancestor isolate slim round civil quick plan punish scared faint spend pile",
+    "device husband academic crush argue boundary canyon rumor makeup space research agree pants pecan sniff ruler writing corner scandal dynamic hesitate indicate mule slice costume swing canyon parcel exact item playoff echo video",
+    "device husband academic debris artist blessing huge arcade fishing hush laser burning geology dive float spend diet overall tidy provide huge lift crazy smart taxi traveler junction obtain olympic either famous pumps fortune",
+    "device husband academic desert acne resident screw welcome game amuse fangs angry industry worthy spend chubby step replace fact research smith worthy scandal slap amazing boundary spider modify general wrap plains clinic aluminum",
+    "device husband academic discuss album slush club timber timber agree company dive exotic pumps fortune false evidence facility muscle smith overall display umbrella slavery merchant mixture drug makeup island river wavy vitamins tadpole",
+    "device husband academic dream answer garden member best ugly laden antenna course flip inherit station perfect petition infant check scandal duke enforce adult slush jacket helpful modify length making adult admit glance manual"
+   ]
+  },
+  {
+   "memberThreshold": 16,
+   "memberCount": 16,
+   "masterSecret": "fb2b56e96154198bd86be9831af62e54a4260e96bf9d12eab6b594d01a5339ae",
+   "shares": [
+    "grocery recover academic afraid arcade venture genre body vocal rapids fact game dance desktop prepare luxury merit valuable multiple dining knit slavery acne acquire have safari surprise activity smell window view imply safari",
+    "grocery recover academic alto always group thumb average axle remind rich prepare mule database privacy inform damage often science species method should elephant mixed together parcel program fatal improve carbon coastal false prepare",
+    "grocery recover academic anxiety actress slice dough alpha graduate dining sack losing energy boundary dough company course shaft stadium surface olympic criminal famous trouble strike teacher legend sister repeat orbit twin dining watch",
+    "grocery recover academic award aspect mason center leaf actress herd kernel spit western burning injury story yelp busy dynamic style tenant render timely ugly nylon gums demand military tactics tofu destroy guilt market",
+    "grocery recover academic bike adorn justice parking lair round explain detailed envelope acrobat trouble texture desire fraction toxic junior emphasis inside ounce slap universe luxury impact pleasure library enemy reunion elite clay problem",
+    "grocery recover academic bracelet academic squeeze include imply silent jewelry family glasses enforce purple sniff divorce glimpse cover laden resident painting move black deliver fact venture morning brave relate artist gross cluster scroll",
+    "grocery recover academic burning alto device script pipeline armed taxi mason hesitate pants short lizard educate charity founder justice damage peaceful drove random hawk license single costume mineral clock grief filter recall sugar",
+    "grocery recover academic carve acne bumpy guest society together memory scatter race curly memory tolerate course resident twice wildlife knit walnut keyboard valid anatomy demand guest busy fangs blimp thunder ambition satoshi cover",
+    "grocery recover academic class avoid amazing length visual welfare yelp mayor bucket news training cylinder modify fiscal have mental equip oral vampire spelling coastal artist snapshot bike satisfy painting prayer leader mild therapy",
+    "grocery recover academic company alarm tension busy duration ticket fraction genius carbon campus pupal nervous short ajar daughter gray company wine victim scatter making industry always woman display disaster terminal slice parking spew",
+    "grocery recover academic crucial award careful fitness quiet window premium main dynamic fluff olympic beam bulge taxi taste rocky admit market sprinkle frozen animal pants owner kernel vintage priest blanket endless best adult",
+    "grocery recover academic deadline anxiety require railroad season news lift angry animal work timely lamp legal smear crush counter multiple hazard guard resident stadium lift coastal join fiscal insect blanket withdraw surprise triumph",
+    "grocery recover academic deploy agree curly learn tension gather human curly endless belong lizard bishop explain improve prune seafood rocky equation revenue hobo database glen rich trash prepare early crisis type clogs capacity",
+    "grocery recover academic diploma argue elite lying bucket decrease lily execute exceed exotic nervous kidney august deploy grocery material walnut best fluff wits shaped change species charity busy shaft object radar mobile sled",
+    "grocery recover academic dragon afraid early blimp tracks flea thorn pupal robin relate grocery emperor admit aquatic short float skunk enjoy vegan decent pancake sprinkle crowd false medical frost level prune drift pencil",
+    "grocery recover academic easel aquatic hybrid chest brave artwork fatal ordinary parking river founder income scene senior bishop recover jerky square benefit hesitate mayor anxiety news length filter frost adequate ladybug animal armed"
+   ]
+  }
+ ]
+}
