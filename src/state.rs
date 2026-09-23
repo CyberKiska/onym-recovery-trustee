@@ -12,6 +12,29 @@ pub enum EnrollmentStatus {
     Closed,
 }
 
+impl EnrollmentStatus {
+    const ALL: [Self; 4] = [
+        Self::Accepted,
+        Self::Superseded,
+        Self::Revoked,
+        Self::Closed,
+    ];
+
+    /// The stored name of this local state.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::Superseded => "superseded",
+            Self::Revoked => "revoked",
+            Self::Closed => "closed",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|status| status.name() == name)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SessionStatus {
     CoolingDown,
@@ -22,6 +45,33 @@ pub enum SessionStatus {
     /// Cancelled by the holder.
     Vetoed,
     Refused,
+}
+
+impl SessionStatus {
+    const ALL: [Self; 6] = [
+        Self::CoolingDown,
+        Self::Released,
+        Self::Finalized,
+        Self::Cancelled,
+        Self::Vetoed,
+        Self::Refused,
+    ];
+
+    /// The stored name of this local state.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::CoolingDown => "cooling_down",
+            Self::Released => "released",
+            Self::Finalized => "finalized",
+            Self::Cancelled => "cancelled",
+            Self::Vetoed => "vetoed",
+            Self::Refused => "refused",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|status| status.name() == name)
+    }
 }
 
 /// Stored facts about one enrollment sequence. Expiry is computed, not stored.
@@ -169,6 +219,18 @@ mod tests {
             session_lifetime_secs: 7 * DAY,
             maximum_attempts: 3,
         }
+    }
+
+    /// The store's CHECK constraints spell these names.
+    #[test]
+    fn stored_names_round_trip() {
+        for status in EnrollmentStatus::ALL {
+            assert_eq!(EnrollmentStatus::from_name(status.name()), Some(status));
+        }
+        for status in SessionStatus::ALL {
+            assert_eq!(SessionStatus::from_name(status.name()), Some(status));
+        }
+        assert_eq!(SessionStatus::from_name("active"), None);
     }
 
     #[test]

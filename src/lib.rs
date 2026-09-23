@@ -8,19 +8,21 @@
 //! Nothing here splits, combines or reconstructs a secret, and nothing here
 //! can decrypt the protected recovery artifact.
 //!
-//! No I/O and no clock: callers pass `now` in Unix seconds, persist what the
-//! functions return, and decide ordering (see `state` for the predicate).
+//! The protocol core does no I/O and reads no clock: callers pass `now` in
+//! Unix seconds. `store` adds the durable lifecycle in SQLite behind one
+//! synchronous call per request.
 
 #![forbid(unsafe_code)]
 
 pub mod crypto;
 pub mod slip39;
 pub mod state;
+pub mod store;
 pub mod wire;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use ed25519_dalek::SigningKey;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use zeroize::Zeroizing;
 
@@ -51,7 +53,7 @@ pub struct Trustee {
 
 /// What a trustee keeps about an accepted enrollment: bindings and policy,
 /// never the share. The sealed envelope is stored exactly as received.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Enrollment {
     pub context: EnrollmentContext,
     pub identity_binding_commitment: String,
@@ -76,6 +78,9 @@ pub struct Session {
     pub artifact_digest: String,
     pub destination_key: [u8; 32],
     pub destination_keys_digest: String,
+    /// The fresh key that signed this session; it also signs the
+    /// candidate's later reads and cancellation.
+    pub proof_key: [u8; 32],
     /// Digest of the session without `candidateEvidence` and
     /// `candidateProof`; what factor evidence signs.
     pub session_commitment: String,
@@ -241,6 +246,7 @@ impl Trustee {
             artifact_digest: core.artifact_digest.to_owned(),
             destination_key,
             destination_keys_digest: wire::destination_keys_digest(&value["destination"]),
+            proof_key,
             session_commitment,
             requested_at,
             expires_at,
