@@ -21,16 +21,20 @@ a fresh destination key. The destination device combines shares itself.
 
 ## Status
 
-The transport-independent core is complete:
+Done:
 
-- SLIP-0039 single-share validation;
-- canonical JSON and the binding's objects;
-- fixed-suite HPKE and Ed25519;
-- the pure release predicate.
+- **Protocol core:** SLIP-0039 single-share validation; canonical JSON and
+  the binding's objects; fixed-suite HPKE and Ed25519; the pure release
+  predicate.
+- **Durable lifecycle in SQLite:** invitations and single-use challenges,
+  custody with read-back before the receipt, recovery sessions with
+  attempts and a cooldown, holder-poll notices, veto and cancellation,
+  revocation and closure as tombstones, replay nonces and idempotent
+  outcomes.
 
-Storage (SQLite), the HTTP service and deployment are not written yet. The
-wire binding is a draft that has not been agreed with the Onym maintainers.
-Everything it decides lives in `src/wire.rs`.
+The HTTP service and deployment are not written yet. The wire binding is a
+draft that has not been agreed with the Onym maintainers. Everything it
+decides lives in `src/wire.rs`.
 
 | Module | Role |
 |---|---|
@@ -39,6 +43,7 @@ Everything it decides lives in `src/wire.rs`.
 | `src/crypto.rs` | HPKE Base mode, DHKEM(X25519, HKDF-SHA256), HKDF-SHA256, AES-256-GCM; Ed25519 `verify_strict`; SHA-256 |
 | `src/state.rs` | Session admission and the release predicate, with time passed in |
 | `src/lib.rs` | Enrollment acceptance, artifact check, session verification, factor check, release |
+| `src/store.rs` | SQLite (WAL, `synchronous=FULL`): one IMMEDIATE transaction per request; receipts signed after commit and read-back |
 
 ## Tests
 
@@ -54,6 +59,14 @@ for this exact suite and reproduces Onym Discovery's canonical-JSON bytes. It
 also pins the binding vectors in `tests/fixtures/binding/` and refuses a
 tampered version of every binding. See
 [`tests/fixtures/README.md`](tests/fixtures/README.md) for provenance.
+
+The lifecycle suite (`tests/lifecycle.rs`) drives `Store::handle` end to end:
+
+- enrollment only with an issued, unused challenge;
+- identical retries returning identical bytes, even after the replay window;
+- a restart during cooldown keeping the deadline;
+- holder veto against release, raced on two connections;
+- tombstones refusing replays, and bounded attempts.
 
 Regenerating fixtures is deliberate:
 
