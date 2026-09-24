@@ -12,8 +12,8 @@
 use std::fs::OpenOptions;
 use std::io::Write as _;
 use std::net::SocketAddr;
-use std::os::unix::fs::OpenOptionsExt as _;
-use std::path::PathBuf;
+use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -72,9 +72,9 @@ fn serve() -> Result<(), String> {
     let trustee = config.trustee()?;
     // Fail at startup, not at the first seal (see `crypto::seal`).
     getrandom::fill(&mut [0u8; 32]).map_err(|_| "the OS random number generator failed")?;
-    let store = Store::open(&config.store_path)
-        .map_err(|error| format!("{}: {error}", config.store_path.display()))?;
-    let manifest = trustee
+    let store = open_store(&config.store_path)?;
+    // Fail at startup, not at the first manifest request.
+    trustee
         .manifest(&config.service, now().map_err(|code| code.to_string())?)
         .map_err(|code| code.to_string())?;
     eprintln!(
@@ -91,7 +91,7 @@ fn serve() -> Result<(), String> {
         // Deliberate global lock: one connection serializes every request.
         // Enough for a reference trustee; lock per enrollment if it is not.
         store: Mutex::new(store),
-        manifest,
+        service: config.service,
     });
     let router = Router::new()
         .route("/health", get(health))
@@ -153,8 +153,7 @@ fn invite(lifetime: &str) -> Result<(), String> {
     let lifetime = wire::duration(lifetime)
         .filter(|&seconds| seconds > 0)
         .ok_or("lifetime: an ISO 8601 duration such as P7D")?;
-    let path = store_path();
-    let mut store = Store::open(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let mut store = open_store(&store_path())?;
     let code = now()
         .and_then(|now| store.create_invitation(lifetime, now))
         .map_err(|code| code.to_string())?;
@@ -168,7 +167,7 @@ fn invite(lifetime: &str) -> Result<(), String> {
 struct App {
     trustee: Trustee,
     store: Mutex<Store>,
-    manifest: Vec<u8>,
+    service: Service,
 }
 
 impl App {
@@ -201,12 +200,20 @@ async fn endpoint(State(app): State<Arc<App>>, body: Result<Bytes, BytesRejectio
         status.as_u16(),
         started.elapsed().as_millis()
     );
-    (status, [(header::CONTENT_TYPE, "application/json")], body).into_response()
+    // Receipts and contributions are private: no cache may keep them.
+    let headers = [
+        (header::CONTENT_TYPE, "application/json"),
+        (header::CACHE_CONTROL, "no-store"),
+    ];
+    (status, headers, body).into_response()
 }
 
+/// Signed on each read; the bytes change only when `validUntil` moves on.
 async fn manifest_json(State(app): State<Arc<App>>) -> Response {
-    let headers = [(header::CONTENT_TYPE, "application/json")];
-    (headers, app.manifest.clone()).into_response()
+    match now().and_then(|now| app.trustee.manifest(&app.service, now)) {
+        Ok(manifest) => ([(header::CONTENT_TYPE, "application/json")], manifest).into_response(),
+        Err(code) => status(code).into_response(),
+    }
 }
 
 async fn health() -> Response {
@@ -294,6 +301,7 @@ impl Config {
     }
 
     fn trustee(&self) -> Result<Trustee, String> {
+        check_private(&self.key_file)?;
         let text = std::fs::read_to_string(&self.key_file)
             .map(Zeroizing::new)
             .map_err(|error| format!("{}: {error}", self.key_file.display()))?;
@@ -324,6 +332,34 @@ fn store_path() -> PathBuf {
     std::env::var("TRUSTEE_STORE_PATH")
         .unwrap_or_else(|_| "trustee.sqlite".into())
         .into()
+}
+
+/// Open the database, creating it owner-only first: SQLite gives its WAL
+/// and shared-memory files the database file's mode.
+fn open_store(path: &Path) -> Result<Store, String> {
+    let fail = |error: &dyn std::fmt::Display| format!("{}: {error}", path.display());
+    OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .open(path)
+        .map_err(|error| fail(&error))?;
+    check_private(path)?;
+    Store::open(path).map_err(|error| fail(&error))
+}
+
+/// Refuse a file holding keys or custody that group or others can reach.
+fn check_private(path: &Path) -> Result<(), String> {
+    let metadata =
+        std::fs::metadata(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    if metadata.permissions().mode() & 0o077 != 0 {
+        return Err(format!(
+            "{}: group or others have access; make it owner-only (chmod 600)",
+            path.display()
+        ));
+    }
+    Ok(())
 }
 
 /// The host of an https origin, or of a loopback http one.

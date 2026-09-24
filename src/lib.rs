@@ -61,12 +61,16 @@ pub struct Service {
     pub contact: String,
 }
 
-/// A manifest signed at startup stays valid this long; a restart re-signs.
-const MANIFEST_LIFETIME_SECS: i64 = 90 * 86_400;
+/// `validUntil` sits on a fixed grid of this period, 60 to 90 days ahead, so
+/// manifest bytes change once a period, not on every restart, and a
+/// running service never serves an expired one.
+const MANIFEST_PERIOD_SECS: i64 = 30 * 86_400;
 
 const RETENTION: &str = "The sealed share and artifact are kept until the holder revokes or \
-    closes the enrollment, which deletes them at once; a tombstone keeps the non-secret \
-    bindings. Expired enrollments are not swept yet.";
+    closes the enrollment. That removes them from the live database at once; copies in freed \
+    disk blocks, snapshots or backups are not erased. A tombstone keeps the non-secret \
+    bindings, and released contributions stay as ciphertext only the candidate can open. \
+    Expired enrollments are not swept yet.";
 
 /// One trustee: its component ID, keys and limits.
 pub struct Trustee {
@@ -159,9 +163,11 @@ impl Trustee {
     /// The signed service manifest: abstract §5.3, plus what this binding
     /// needs published (enrollment key, limits, operations) and one free
     /// offer (§12). Each unsupported operation is declared with its code.
+    /// Ed25519 is deterministic, so equal inputs give equal bytes.
     pub fn manifest(&self, service: &Service, now: i64) -> Result<Vec<u8>, Code> {
         let limits = &self.limits;
-        let valid_until = wire::format_timestamp(now + MANIFEST_LIFETIME_SECS)
+        let period = now.div_euclid(MANIFEST_PERIOD_SECS);
+        let valid_until = wire::format_timestamp((period + 3) * MANIFEST_PERIOD_SECS)
             .ok_or(Code::TemporarilyUnavailable)?;
         let refused: serde_json::Map<String, Value> = store::REFUSED
             .iter()

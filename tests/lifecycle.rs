@@ -701,6 +701,22 @@ fn tombstones_refuse_replays() {
         (closed["oldState"].as_str(), closed["newState"].as_str()),
         (Some("revoked"), Some("closed"))
     );
+
+    // Gone from the live files too, the WAL included: the database is
+    // checkpointed and `secure_delete` zeroes freed pages.
+    let sealed = STANDARD
+        .decode(
+            wire::parse(&enroll).unwrap()["sealedEnvelope"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+    for suffix in ["", "-wal"] {
+        let bytes = std::fs::read(format!("{}{suffix}", db.0.display())).unwrap_or_default();
+        let found = bytes.windows(64).any(|window| window == &sealed[..64]);
+        assert!(!found, "sealed envelope left in the database{suffix} file");
+    }
+
     let (sealed, artifact): (Option<Vec<u8>>, Option<Vec<u8>>) = rusqlite::Connection::open(&db.0)
         .unwrap()
         .query_row(
@@ -840,4 +856,15 @@ fn requests_must_be_addressed_and_signed_correctly() {
         Err(Code::InvalidRequest)
     );
     assert_eq!(h.raw(b"not json", &now), Err(Code::InvalidRequest));
+}
+
+#[test]
+fn an_unknown_schema_version_is_refused() {
+    let db = TempDb::new();
+    drop(db.store());
+    rusqlite::Connection::open(&db.0)
+        .unwrap()
+        .execute_batch("PRAGMA user_version = 999")
+        .unwrap();
+    assert!(Store::open(&db.0).is_err());
 }

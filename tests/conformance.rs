@@ -1068,3 +1068,45 @@ fn release_seals_to_this_session_only() {
         Err(Code::InvalidRequest)
     );
 }
+
+#[test]
+fn manifests_are_signed_and_stay_valid() {
+    let trustee = trustee();
+    let service = onym_recovery_trustee::Service {
+        endpoint: "https://trustee.example/v1/trustee".into(),
+        trust_domain: "trustee.example".into(),
+        jurisdiction: "none".into(),
+        contact: "none".into(),
+    };
+    let now = at(ENROLLED_AT);
+    let manifest = trustee.manifest(&service, now).unwrap();
+    let mut value = wire::parse(&manifest).unwrap();
+    let signature = value.as_object_mut().unwrap().remove("signature").unwrap();
+    let signature: [u8; 64] = STANDARD
+        .decode(signature.as_str().unwrap())
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let operator = keys().operator.verifying_key().to_bytes();
+    assert_eq!(
+        crypto::verify(&operator, &wire::canonical(&value), &signature),
+        Ok(())
+    );
+    assert_eq!(
+        value["operator"],
+        json!(format!("onym:key:{}", hex::encode(operator)))
+    );
+
+    // Valid 60 to 90 days ahead, on a grid: the same bytes until it moves.
+    let valid_until = at(value["validUntil"].as_str().unwrap());
+    assert!((now + 60 * DAY..=now + 90 * DAY).contains(&valid_until));
+    let grid = valid_until - 90 * DAY;
+    assert_eq!(
+        trustee.manifest(&service, grid).unwrap(),
+        trustee.manifest(&service, grid + 30 * DAY - 1).unwrap()
+    );
+    assert_ne!(
+        trustee.manifest(&service, grid).unwrap(),
+        trustee.manifest(&service, grid + 30 * DAY).unwrap()
+    );
+}

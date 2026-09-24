@@ -143,7 +143,8 @@ pub struct Store {
 
 impl Store {
     /// Open or create the database: WAL, `synchronous=FULL`, foreign keys,
-    /// and `secure_delete`, so deleted custody is overwritten on disk.
+    /// and `secure_delete`, so deleted custody is zeroed in the database
+    /// file. A database of an unknown schema version is refused.
     pub fn open(path: impl AsRef<Path>) -> rusqlite::Result<Store> {
         Store::setup(Connection::open(path)?)
     }
@@ -161,8 +162,16 @@ impl Store {
              PRAGMA secure_delete = ON;",
         )?;
         let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        if version == 0 {
-            connection.execute_batch(SCHEMA)?;
+        match version {
+            0 => connection.execute_batch(SCHEMA)?,
+            1 => {}
+            // Never guess at a layout this build does not know.
+            _ => {
+                return Err(rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISMATCH),
+                    Some(format!("unsupported schema version {version}")),
+                ));
+            }
         }
         Ok(Store { connection })
     }
@@ -688,6 +697,11 @@ impl Store {
         let state = |status| wire::enrollment_state(status, enrollment.expires_at, now);
         record_outcome(&tx, &scope, &signed, state(row.status), state(status), now)?;
         tx.commit()?;
+        // Best effort: move the deletion into the database file and empty the
+        // WAL, which still holds the enrolled pages. Freed disk blocks remain.
+        let _ = self
+            .connection
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()));
         self.outcome_receipt(trustee, &scope, &signed.request_id)
     }
 
