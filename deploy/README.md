@@ -40,7 +40,9 @@ docker compose logs trustee-a trustee-b trustee-c   # component, operator key, t
 wherever holders can compare them with the manifests. Back up `secrets/`
 offline and apart from the data volumes.
 
-Check the running stack, spending one invitation per trustee:
+Check the running stack. The check spends one invitation per trustee and
+stops trustee C for about one cooldown (`MIN_COOLDOWN`), so run it before
+holders enroll or at a quiet time:
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install --require-hashes -r ../tools/requirements.txt
