@@ -80,9 +80,24 @@ Holders enroll with `tools/client.py` (see the top-level README).
   test data, and tell holders when you do.
 - **Deletion:** revoke and close remove custody from the live database at
   once. Volume snapshots and backups keep what they held.
-- **Logs:** per request, route, status, error code and duration; public
-  keys at startup. Rotated at 3 × 10 MB.
-- **Limits:** stock Caddy has no per-client rate limit. The attempt budget,
-  single-use invitations and the body and connection caps bound what
-  anonymous traffic can do; add a rate-limiting front end before any real
-  use.
+- **Logs:** trustees log route, status, error code and duration per
+  request, and public keys at startup; Caddy logs failed requests without
+  client details. Rotated at 3 × 10 MB.
+
+## Before going public
+
+This stack is ready for invited reviewers, not for anonymous traffic:
+
+- **Request budget.** Stock Caddy has no per-client rate or connection
+  limit. Body caps, timeouts, eight upstream connections per trustee,
+  single-use invitations and per-enrollment attempt budgets bound what one
+  request can do, not how many arrive. Put a connection and request limit
+  in front (the host firewall or a load balancer), and check that a modest
+  flood is refused while a recovery still completes; or restrict the
+  origins to the reviewers you invite.
+- **A second machine.** `check.sh` runs on the host. Enroll and recover
+  once from elsewhere with `tools/client.py` (top-level README) against the
+  public origins, using fresh invitations.
+- **What you publish.** Each manifest's URL, operator key and
+  `trusteeKeyId`, how to ask for an invitation, and a contact that reaches
+  you (`CONTACT`).
