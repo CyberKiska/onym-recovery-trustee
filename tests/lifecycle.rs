@@ -677,6 +677,12 @@ fn attempts_are_bounded_and_counted_at_factor_evaluation() {
     });
     assert_eq!(h.raw(&other, BEGUN_AT), Err(Code::InvalidRequest));
 
+    // So does a fractional expiry, which would change the signed binding.
+    let fractional = begin_request(&session_id(2), &factor(), |s| {
+        s["expiresAt"] = json!("2026-10-05T00:00:00.5Z")
+    });
+    assert_eq!(h.raw(&fractional, BEGUN_AT), Err(Code::InvalidRequest));
+
     let second = h.call(&begin(&session_id(3)), BEGUN_AT).unwrap();
     assert_eq!(second["remainingAttempts"], 1);
     let third = h.call(&begin(&session_id(4)), BEGUN_AT).unwrap();

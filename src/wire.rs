@@ -275,11 +275,12 @@ pub(crate) fn sequence(value: u64) -> Option<u64> {
     (1..=MAX_SAFE_INTEGER).contains(&value).then_some(value)
 }
 
-/// Exactly `YYYY-MM-DDTHH:MM:SSZ`: UTC, whole seconds, one spelling.
+/// Exactly `YYYY-MM-DDTHH:MM:SSZ`: UTC, whole seconds, one spelling. The
+/// text must equal the formatting of the seconds it denotes, so fractions,
+/// offsets and leap seconds are refused rather than rounded away.
 pub fn timestamp(text: &str) -> Option<i64> {
-    let parsed = OffsetDateTime::parse(text, &Rfc3339).ok()?;
-    let canonical = parsed.offset().is_utc() && parsed.format(&Rfc3339).ok()? == text;
-    canonical.then(|| parsed.unix_timestamp())
+    let seconds = OffsetDateTime::parse(text, &Rfc3339).ok()?.unix_timestamp();
+    (format_timestamp(seconds)? == text).then_some(seconds)
 }
 
 pub fn format_timestamp(unix_seconds: i64) -> Option<String> {
@@ -862,6 +863,11 @@ mod tests {
         );
         for rejected in [
             "1970-01-01T00:01:00.000Z",
+            "1970-01-01T00:01:00.1Z",
+            "1970-01-01T00:01:00.5Z",
+            "1970-01-01T00:01:00.123456789Z",
+            "1970-01-01T23:59:60Z",
+            "1970-01-01T00:01:00+00:00",
             "1970-01-01t00:01:00z",
             "1970-01-01T01:01:00+01:00",
             "1970-01-01 00:01:00Z",

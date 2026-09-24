@@ -105,7 +105,11 @@ def timestamp(seconds):
 
 
 def seconds(text):
-    return int(datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp())
+    """Exactly `YYYY-MM-DDTHH:MM:SSZ`; any other spelling is refused, as in Rust."""
+    value = int(datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp())
+    if timestamp(value) != text:
+        raise ValueError(f"timestamp: {text}")
+    return value
 
 
 def duration(text):
