@@ -11,7 +11,7 @@ One operator, one host: three trustees, a 2-of-3 set, behind Caddy.
   address, URI or headers. It runs read-only, able only to bind 80 and 443.
 
 The three trustees declare one trust domain, so a client warns that they
-are not independent. The service is unreviewed: its manifest limits it to
+are not independent. The service is unaudited: its manifest limits it to
 synthetic test secrets, and so should you.
 
 ## First start

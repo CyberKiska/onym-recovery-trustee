@@ -27,8 +27,8 @@ The same stack behind TLS in containers, on one machine or a public host:
 - **Not able to read what it guards.** The protected recovery artifact is
   encrypted under a key only a recovering vault reconstructs. The trustee
   checks its digest and header, not its contents.
-- **Not reviewed.** Nothing here has had independent cryptographic or code
-  review. Do not use it with real secrets.
+- **Not audited.** It has not had an independent security audit. Do not use
+  it with real secrets.
 
 ## Status
 

@@ -1,6 +1,6 @@
 # Security
 
-This is an unreviewed reference implementation of a draft binding. Use it
+This is an unaudited reference implementation of a draft binding. Use it
 with synthetic test secrets only.
 
 ## Reporting a vulnerability
