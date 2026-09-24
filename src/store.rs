@@ -198,7 +198,9 @@ impl Store {
     /// Tie the database to one trustee. The first call records its
     /// component, operator key and enrollment key; later calls return
     /// false for any other, so a wrong key file or component ID never
-    /// serves custody sealed to, or bound to, another.
+    /// serves custody sealed to, or bound to, another. A database that
+    /// already holds custody but was never bound (schema 1) cannot show
+    /// whose it is, so it is refused under every key rather than adopted.
     pub fn bind(&mut self, trustee: &Trustee) -> rusqlite::Result<bool> {
         let identity = (
             trustee.component_id.clone(),
@@ -208,6 +210,14 @@ impl Store {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let unbound_custody: bool = tx.query_row(
+            "SELECT NOT EXISTS (SELECT 1 FROM identity) AND EXISTS (SELECT 1 FROM enrollments)",
+            [],
+            |row| row.get(0),
+        )?;
+        if unbound_custody {
+            return Ok(false);
+        }
         tx.execute(
             "INSERT OR IGNORE INTO identity (id, component_id, operator, trustee_key_id)
              VALUES (1, ?1, ?2, ?3)",

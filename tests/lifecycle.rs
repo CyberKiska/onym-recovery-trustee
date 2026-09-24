@@ -910,3 +910,22 @@ fn a_version_one_database_is_migrated() {
         .unwrap();
     assert_eq!(version, 2);
 }
+
+#[test]
+fn custody_from_before_binding_is_never_adopted() {
+    let db = TempDb::new();
+    Harness::with(db.store()).enroll();
+    rusqlite::Connection::open(&db.0)
+        .unwrap()
+        .execute_batch("DROP TABLE identity; PRAGMA user_version = 1;")
+        .unwrap();
+    // Nothing in the old schema says whose custody this is: the right key
+    // and a wrong one are refused alike, and neither is recorded.
+    let other_key = Trustee {
+        hpke_key: crypto::hpke_private_key(&[0x45; 32]).unwrap(),
+        ..trustee()
+    };
+    for trustee in [other_key, trustee()] {
+        assert_eq!(db.store().bind(&trustee), Ok(false));
+    }
+}

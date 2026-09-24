@@ -78,7 +78,8 @@ fn serve() -> Result<(), String> {
         .map_err(|error| format!("{}: {error}", config.store_path.display()))?;
     if !bound {
         return Err(format!(
-            "{}: this database belongs to another component or key; refusing to serve it",
+            "{}: this database belongs to another component or key, or holds custody from \
+             before databases were bound to one; refusing to serve it",
             config.store_path.display()
         ));
     }
