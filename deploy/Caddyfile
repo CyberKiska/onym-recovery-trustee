@@ -1,8 +1,23 @@
 # TLS in front of the three trustees. Caddy obtains and renews certificates
 # itself: Let's Encrypt for public names, its own CA for localhost. No site
-# configures an access log, so client addresses are not kept.
+# configures an access log, and the default log keeps no client address,
+# URI or header.
 {
 	email {$CADDY_EMAIL}
+	# Without an access log, Caddy still logs each failed request (a trustee
+	# that is down answers 502) with the client's address, URI and headers.
+	# Keep the record for diagnosis; drop what identifies the client.
+	log default {
+		format filter {
+			wrap json
+			request>remote_ip delete
+			request>remote_port delete
+			request>client_ip delete
+			request>uri delete
+			request>headers delete
+			request>tls delete
+		}
+	}
 	servers {
 		# TCP only: no UDP port is published, so HTTP/3 is not offered.
 		protocols h1 h2

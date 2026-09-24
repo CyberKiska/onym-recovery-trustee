@@ -6,8 +6,9 @@ One operator, one host: three trustees, a 2-of-3 set, behind Caddy.
   capabilities, no core dumps and no published port. Each writes only its
   own data volume and refuses a database that belongs to another key.
 - **Caddy** terminates TLS (Let's Encrypt), cuts off slow clients, caps
-  request bodies, queues requests instead of piling them onto a trustee, and
-  keeps no access log.
+  request bodies and queues requests instead of piling them onto a trustee.
+  It keeps no access log, and logs failed requests without the client's
+  address, URI or headers. It runs read-only, able only to bind 80 and 443.
 
 The three trustees declare one trust domain, so a client warns that they
 are not independent. The service is unreviewed: its manifest limits it to
