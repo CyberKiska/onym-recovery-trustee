@@ -22,8 +22,9 @@ The same stack behind TLS in containers, on one machine or a public host:
 
 ## What it is not
 
-- **Not a secret-sharing implementation.** No code here splits, combines or
-  reconstructs a secret. A trustee validates one share and never sees another.
+- **The trustee does not split or reconstruct secrets.** It validates one
+  share and never sees another. The separate demo client splits and combines
+  shares locally.
 - **Not able to read what it guards.** The protected recovery artifact is
   encrypted under a key only a recovering vault reconstructs. The trustee
   checks its digest and header, not its contents.
