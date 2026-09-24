@@ -1,0 +1,6 @@
+# The build needs Cargo.toml, Cargo.lock and src/ only. An allow-list keeps
+# everything else out of the build context, key files and databases first.
+*
+!Cargo.toml
+!Cargo.lock
+!src/
