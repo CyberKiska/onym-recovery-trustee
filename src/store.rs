@@ -45,9 +45,10 @@ const CHALLENGE_LIFETIME_SECS: i64 = 15 * 60;
 /// Unused challenges one invitation may have outstanding.
 const MAX_OPEN_CHALLENGES: i64 = 4;
 
-const SCHEMA: &str = "
-BEGIN;
-
+/// Schema migrations: entry `i` takes version `i` to `i + 1`, each in its
+/// own transaction. Only ever append.
+const MIGRATIONS: [&str; 2] = [
+    "
 -- Highest time any transaction has seen: a clock behind it moved backwards.
 CREATE TABLE clock (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -125,10 +126,17 @@ CREATE TABLE outcomes (
     recorded_at INTEGER NOT NULL,
     PRIMARY KEY (scope, request_id)
 );
-
-PRAGMA user_version = 1;
-COMMIT;
-";
+",
+    "
+-- The one trustee this database serves (`Store::bind`).
+CREATE TABLE identity (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    component_id TEXT NOT NULL,
+    operator TEXT NOT NULL,
+    trustee_key_id TEXT NOT NULL
+);
+",
+];
 
 /// Database failures never reach a response in detail.
 impl From<rusqlite::Error> for Code {
@@ -143,8 +151,9 @@ pub struct Store {
 
 impl Store {
     /// Open or create the database: WAL, `synchronous=FULL`, foreign keys,
-    /// and `secure_delete`, so deleted custody is zeroed in the database
-    /// file. A database of an unknown schema version is refused.
+    /// `secure_delete`, so deleted custody is zeroed in the database file,
+    /// and temporaries in memory, never in a file of their own. Older
+    /// schemas are migrated; a newer one is refused.
     pub fn open(path: impl AsRef<Path>) -> rusqlite::Result<Store> {
         Store::setup(Connection::open(path)?)
     }
@@ -153,27 +162,64 @@ impl Store {
         Store::setup(Connection::open_in_memory()?)
     }
 
-    fn setup(connection: Connection) -> rusqlite::Result<Store> {
+    fn setup(mut connection: Connection) -> rusqlite::Result<Store> {
         connection.busy_timeout(Duration::from_secs(5))?;
         connection.execute_batch(
             "PRAGMA journal_mode = WAL;
              PRAGMA synchronous = FULL;
              PRAGMA foreign_keys = ON;
-             PRAGMA secure_delete = ON;",
+             PRAGMA secure_delete = ON;
+             PRAGMA temp_store = MEMORY;",
         )?;
-        let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        match version {
-            0 => connection.execute_batch(SCHEMA)?,
-            1 => {}
-            // Never guess at a layout this build does not know.
-            _ => {
-                return Err(rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISMATCH),
-                    Some(format!("unsupported schema version {version}")),
-                ));
+        // The version is read inside each write transaction, so two processes
+        // opening a new database never both apply the same step.
+        loop {
+            let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            let version: usize = tx.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+            match MIGRATIONS.get(version) {
+                Some(migration) => {
+                    tx.execute_batch(migration)?;
+                    tx.pragma_update(None, "user_version", version + 1)?;
+                    tx.commit()?;
+                }
+                None if version == MIGRATIONS.len() => break,
+                // Never guess at a layout this build does not know.
+                None => {
+                    return Err(rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_MISMATCH),
+                        Some(format!("unsupported schema version {version}")),
+                    ));
+                }
             }
         }
         Ok(Store { connection })
+    }
+
+    /// Tie the database to one trustee. The first call records its
+    /// component, operator key and enrollment key; later calls return
+    /// false for any other, so a wrong key file or component ID never
+    /// serves custody sealed to, or bound to, another.
+    pub fn bind(&mut self, trustee: &Trustee) -> rusqlite::Result<bool> {
+        let identity = (
+            trustee.component_id.clone(),
+            trustee.operator(),
+            trustee.key_id(),
+        );
+        let tx = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        tx.execute(
+            "INSERT OR IGNORE INTO identity (id, component_id, operator, trustee_key_id)
+             VALUES (1, ?1, ?2, ?3)",
+            params![identity.0, identity.1, identity.2],
+        )?;
+        let stored: (String, String, String) = tx.query_row(
+            "SELECT component_id, operator, trustee_key_id FROM identity",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?;
+        tx.commit()?;
+        Ok(stored == identity)
     }
 
     /// Mint an invitation for one enrollment. Only its digest is stored; the

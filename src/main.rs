@@ -72,7 +72,16 @@ fn serve() -> Result<(), String> {
     let trustee = config.trustee()?;
     // Fail at startup, not at the first seal (see `crypto::seal`).
     getrandom::fill(&mut [0u8; 32]).map_err(|_| "the OS random number generator failed")?;
-    let store = open_store(&config.store_path)?;
+    let mut store = open_store(&config.store_path)?;
+    let bound = store
+        .bind(&trustee)
+        .map_err(|error| format!("{}: {error}", config.store_path.display()))?;
+    if !bound {
+        return Err(format!(
+            "{}: this database belongs to another component or key; refusing to serve it",
+            config.store_path.display()
+        ));
+    }
     // Fail at startup, not at the first manifest request.
     trustee
         .manifest(&config.service, now().map_err(|code| code.to_string())?)

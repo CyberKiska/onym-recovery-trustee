@@ -9,7 +9,8 @@
   polling, resuming the candidate's saved session after a restart;
 - two shares rebuild the key and open the artifact; one share, a repeated or
   foreign share, or an altered artifact header does not;
-- expired pinned manifests still work; a trustee whose keys changed does not;
+- expired pinned manifests still work; a trustee whose keys changed does not,
+  and a restart with another key refuses its database;
 - Python opens Rust's HPKE output and verifies its signatures, and the
   other way round;
 - no planted secret reaches an error body or a log;
@@ -104,6 +105,9 @@ class Server:
         with open(self.log, "ab") as log:
             self.process = subprocess.Popen([self.binary, "serve"], env=self.env, stderr=log)
         for _ in range(50):
+            if self.process.poll() is not None:
+                self.process = None
+                raise RuntimeError(f"{self.origin} refused to start")
             try:
                 urllib.request.urlopen(f"{self.origin}/health", timeout=1).read()
                 return
@@ -293,6 +297,11 @@ def check(servers, work):
     servers[2].stop()
     Path(servers[2].env["TRUSTEE_KEY_FILE"]).unlink()
     servers[2].run("keygen", servers[2].env["TRUSTEE_KEY_FILE"])
+    assert raises(RuntimeError, servers[2].start)
+    ok("a trustee restarted with another key refuses to serve its database")
+
+    # An impostor at the same origin, with its own database.
+    servers[2].env["TRUSTEE_STORE_PATH"] = str(work / "impostor.sqlite")
     servers[2].start()
     assert raises(ValueError, lambda: pinned[2].refreshed())
     [(_, error)] = [result for result in recovered.poll() if result[0] == third.component_id]

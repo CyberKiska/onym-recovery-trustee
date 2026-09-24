@@ -868,3 +868,45 @@ fn an_unknown_schema_version_is_refused() {
         .unwrap();
     assert!(Store::open(&db.0).is_err());
 }
+
+#[test]
+fn a_database_serves_one_trustee() {
+    let db = TempDb::new();
+    let mut store = db.store();
+    assert_eq!(store.bind(&trustee()), Ok(true));
+    assert_eq!(store.bind(&trustee()), Ok(true));
+
+    // Another operator key, enrollment key or component is refused.
+    let other_operator = Trustee {
+        signing_key: impostor(),
+        ..trustee()
+    };
+    let other_key = Trustee {
+        hpke_key: crypto::hpke_private_key(&[0x45; 32]).unwrap(),
+        ..trustee()
+    };
+    let other_component = Trustee {
+        component_id: "onym:component:other".into(),
+        ..trustee()
+    };
+    for other in [other_operator, other_key, other_component] {
+        assert_eq!(db.store().bind(&other), Ok(false));
+    }
+}
+
+#[test]
+fn a_version_one_database_is_migrated() {
+    let db = TempDb::new();
+    drop(db.store());
+    rusqlite::Connection::open(&db.0)
+        .unwrap()
+        .execute_batch("DROP TABLE identity; PRAGMA user_version = 1;")
+        .unwrap();
+    let mut store = db.store();
+    assert_eq!(store.bind(&trustee()), Ok(true));
+    let version: i64 = rusqlite::Connection::open(&db.0)
+        .unwrap()
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 2);
+}
