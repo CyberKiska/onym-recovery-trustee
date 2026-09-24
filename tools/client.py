@@ -85,7 +85,8 @@ def canonical(value):
 
 
 def parse(raw):
-    """A JSON object, refusing duplicate keys at any depth, floats and non-finite numbers."""
+    """A JSON object, refusing duplicate keys at any depth, floats, non-finite
+    numbers and nesting too deep for the parser."""
 
     def unique(pairs):
         if len({key for key, _ in pairs}) != len(pairs):
@@ -95,7 +96,10 @@ def parse(raw):
     def refuse(constant):
         raise ValueError(f"not an integer: {constant}")
 
-    value = json.loads(raw, object_pairs_hook=unique, parse_float=refuse, parse_constant=refuse)
+    try:
+        value = json.loads(raw, object_pairs_hook=unique, parse_float=refuse, parse_constant=refuse)
+    except RecursionError:
+        raise ValueError("nested too deeply") from None
     if not isinstance(value, dict):
         raise ValueError("not an object")
     return value
@@ -195,6 +199,15 @@ def identity_commitment(salt, subject, descriptor):
     return digest(canonical(["onym-recovery-identity-binding-v1", salt, subject, descriptor]))
 
 
+def required(value, key, kind=str):
+    """`value[key]`, required to be a non-empty `kind`: a remote object's
+    shape is untrusted until checked."""
+    item = value.get(key) if isinstance(value, dict) else None
+    if not isinstance(item, kind) or not item:
+        raise ValueError(f"malformed: {key}")
+    return item
+
+
 def expect(value, fields, what):
     """Require each field to equal its expected value, type included."""
     mismatched = sorted(key for key, item in fields.items() if canonical(value.get(key)) != canonical(item))
@@ -283,22 +296,23 @@ class Trustee:
     keys enrolled with. `refreshed` checks what the trustee serves now."""
 
     def __init__(self, manifest, current=True):
-        self.operator = manifest["operator"].removeprefix("onym:key:")
+        self.operator = required(manifest, "operator").removeprefix("onym:key:")
         verify(manifest, "signature", self.operator)
-        key = manifest["enrollmentKey"]
+        self.component_id = required(manifest, "componentId")
+        self.endpoint = required(manifest, "endpoints", list)[0]
+        key = required(manifest, "enrollmentKey", dict)
+        required(manifest, "trustDomain")
         usable = (
-            manifest["bindingVersion"] == BINDING
-            and PROFILE in manifest["implementationProfileIds"]
-            and key["suite"] == ENCRYPTION_SUITE
-            and key["trusteeKeyId"] == digest(hex32(key["publicKey"]))
-            and manifest["endpoints"][0].endswith("/v1/trustee")
-            and (not current or seconds(manifest["validUntil"]) > time.time())
+            required(manifest, "bindingVersion") == BINDING
+            and PROFILE in required(manifest, "implementationProfileIds", list)
+            and required(key, "suite") == ENCRYPTION_SUITE
+            and required(key, "trusteeKeyId") == digest(hex32(required(key, "publicKey")))
+            and isinstance(self.endpoint, str) and self.endpoint.endswith("/v1/trustee")
+            and (not current or seconds(required(manifest, "validUntil")) > time.time())
         )
         if not usable:
-            raise ValueError(f"unusable manifest: {manifest['componentId']}")
+            raise ValueError(f"unusable manifest: {self.component_id}")
         self.manifest = manifest
-        self.component_id = manifest["componentId"]
-        self.endpoint = manifest["endpoints"][0]
         check_url(self.endpoint)
         self.enrollment_key = X25519PublicKey.from_public_bytes(hex32(key["publicKey"]))
         self.key_id = key["trusteeKeyId"]
@@ -762,7 +776,7 @@ class Candidate:
         """Check a contribution completely, open it with the destination key
         and verify the holder-signed envelope inside. Keeps and returns it."""
         name, entry = trustee.component_id, self.slots[trustee.component_id]
-        if set(contribution) != CONTRIBUTION_FIELDS:
+        if not isinstance(contribution, dict) or set(contribution) != CONTRIBUTION_FIELDS:
             raise ValueError(f"{name}: contribution fields")
         verify(contribution, "signature", trustee.operator)
         bindings = {key: self.session[key] for key in CONTRIBUTION if key in self.session}
