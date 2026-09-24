@@ -177,9 +177,9 @@ mid-write, reconstruction with two shares and not one, expired pinned
 manifests, a trustee serving new keys, and a scan of error bodies and logs
 for planted secrets.
 
-CI (`.github/workflows/ci.yml`) runs all of this on Linux, checks the
-minimum Rust version, runs `cargo deny` against `deny.toml`, and brings up
-the container stack behind Caddy to run `deploy/check.sh` against it.
+The CI workflow (`.github/workflows/ci.yml`) is configured for Linux:
+format, Clippy, Rust tests, Python E2E, MSRV, `cargo deny`, and the
+container stack's `deploy/check.sh` acceptance check.
 
 ```sh
 cargo build
