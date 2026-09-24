@@ -830,14 +830,21 @@ fn requests_must_be_addressed_and_signed_correctly() {
         3,
         &now,
     );
-    let elsewhere = {
-        let mut value = wire::parse(&read_enrollment(4, &now)).unwrap();
+    // Signed by the right key, but addressed elsewhere or with a null
+    // standing in for an absent field.
+    let resigned = |request: u8, edit: fn(&mut Value)| {
+        let mut value = wire::parse(&read_enrollment(request, &now)).unwrap();
         value.as_object_mut().unwrap().remove("signature");
-        value["componentId"] = json!("onym:component:other");
+        edit(&mut value);
         sign(&mut value, "signature", &holder());
         wire::canonical(&value)
     };
-    for request in [unknown, forged, elsewhere] {
+    let elsewhere = resigned(4, |value| {
+        value["componentId"] = json!("onym:component:other")
+    });
+    let null_session = resigned(6, |value| value["sessionId"] = Value::Null);
+    let null_by = resigned(7, |value| value["by"] = Value::Null);
+    for request in [unknown, forged, elsewhere, null_session, null_by] {
         assert_eq!(h.raw(&request, &now), Err(Code::InvalidRequest));
     }
     assert!(h.call(&read_enrollment(5, &now), &now).is_ok());

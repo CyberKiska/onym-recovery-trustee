@@ -634,13 +634,19 @@ struct SignedRequest {
     request_id: String,
     component_id: String,
     issued_at: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "present")]
     enrollment_id: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "present")]
     session_id: Option<String>,
     /// `cancel-recovery` only: `candidate` or `holder`.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "present")]
     by: Option<String>,
+}
+
+/// An optional field is absent or a string: `null` would be a second
+/// spelling of absence.
+fn present<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
+    String::deserialize(deserializer).map(Some)
 }
 
 /// A parsed `SignedRequest`, signature taken out, naming one target.
