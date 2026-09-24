@@ -28,7 +28,7 @@ docker compose build
 install -d -m 700 secrets
 for t in a b c; do
   docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/secrets:/keys" \
-    onym-recovery-trustee:local keygen /keys/trustee-$t.key
+    onym-recovery-trustee keygen /keys/trustee-$t.key
 done
 sudo chown 10001:10001 secrets/*.key   # readable by the service user only
 

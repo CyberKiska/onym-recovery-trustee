@@ -3,14 +3,14 @@
 # declares it, so a client warns that these trustees are not independent.
 # Setup and operation: README.md.
 
-name: onym-recovery-trustee
+name: onym-recovery
 
 x-logging: &logging
   driver: json-file
   options: { max-size: 10m, max-file: "3" }
 
 x-trustee: &trustee
-  image: ${TRUSTEE_IMAGE:-onym-recovery-trustee:local}
+  image: ${TRUSTEE_IMAGE:-onym-recovery-trustee}
   build:
     context: ..
   restart: unless-stopped
