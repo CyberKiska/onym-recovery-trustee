@@ -147,6 +147,13 @@ def check(servers, work):
     assert c.parse(journal.read_bytes()) == {"saved": 3} and len(list(work.glob(".journal.json.*.tmp"))) == 1
     ok("a client killed before its rename leaves the old file whole, and a stray that blocks no later write")
 
+    proxy = [c.Refused(status, b"") for status in (429, 502, 503, 504)]
+    final = [c.Refused(status, c.canonical({"error": code}))
+             for status, code in ((429, "recovery_rate_limited"), (400, "invalid_request"), (409, "recovery_vetoed"))]
+    assert all(map(c.transient, proxy)) and not any(map(c.transient, final))
+    assert c.transient(c.Refused(503, c.canonical({"error": "temporarily_unavailable"})))
+    ok("a proxy's 502, 504 or bare 429 is retried within the session; a trustee's refusal is final")
+
     trustees = [c.Trustee.fetch(server.origin) for server in servers]
     first, second, third = trustees
     ok("three signed manifests verify")

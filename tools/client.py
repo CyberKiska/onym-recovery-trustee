@@ -224,8 +224,13 @@ FAILURES = (Refused, OSError, HTTPException, ValueError, KeyError, TypeError, In
 
 
 def transient(error):
-    """Worth retrying later: the trustee was unreachable or said so."""
-    return isinstance(error, (OSError, HTTPException)) or isinstance(error, Refused) and error.status == 503
+    """Worth retrying within the session: the trustee was unreachable, said
+    it cannot decide now (503), or a proxy in front of it failed (502, 504)
+    or throttled. A trustee's own 429 carries `recovery_rate_limited` and is
+    final; a proxy's carries no binding error code."""
+    if isinstance(error, Refused):
+        return error.status in (502, 503, 504) or error.status == 429 and error.code is None
+    return isinstance(error, (OSError, HTTPException))
 
 
 def describe(error):
