@@ -7,7 +7,8 @@
 - release happens only after the cooldown, and a restart keeps the deadline;
 - recovery completes with one trustee down at begin and another down while
   polling, resuming the candidate's saved session after a restart;
-- two shares rebuild the key and open the artifact, one share does not;
+- two shares rebuild the key and open the artifact; one share, a repeated or
+  foreign share, or an altered artifact header does not;
 - expired pinned manifests still work; a trustee whose keys changed does not;
 - Python opens Rust's HPKE output and verifies its signatures, and the
   other way round;
@@ -70,7 +71,7 @@ class Server:
     """One trustee process with its own key file, database and log."""
 
     def __init__(self, binary, work, name, port):
-        self.binary, self.port, self.work = binary, port, work
+        self.binary, self.port = binary, port
         self.log = work / f"{name}.log"
         self.env = dict(
             os.environ,
@@ -256,6 +257,16 @@ def check(servers, work):
     assert artifact["payload"]["secret"] == canary
     assert raises(MnemonicError, lambda: c.restore(recovery_map, shares[:1]))
     ok("two shares rebuild the key and open the artifact, identity binding checked; one share does not")
+
+    assert raises(MnemonicError, lambda: c.restore(recovery_map, [shares[0], shares[0]]))
+    [foreign] = c.generate_mnemonics(1, [(2, 3)], os.urandom(32), b"", extendable=False, iteration_exponent=0)
+    assert raises((MnemonicError, c.InvalidTag), lambda: c.restore(recovery_map, [shares[0], foreign[1]]))
+    for field, value in (("enrollmentSequence", 2), ("artifactId", c.random_id()), ("enrollmentId", c.random_id())):
+        header = {key: item for key, item in recovery_map["protectedArtifact"].items() if key != "artifactDigest"}
+        header[field] = value
+        header["artifactDigest"] = c.digest(c.canonical(header))
+        assert raises(c.InvalidTag, lambda: c.restore(dict(recovery_map, protectedArtifact=header), shares)), field
+    ok("a repeated share, a share from another set and every altered artifact header are refused")
     ok("Rust opened Python's HPKE envelopes and verified its signatures; Python opened "
        "Rust's contributions and verified its receipts")
 
