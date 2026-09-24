@@ -2,7 +2,7 @@
 name = "onym-recovery-trustee"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Reference trustee for the Onym recovery-trustee seat, Shamir (SLIP-0039) profile"
 license = "MIT"
 publish = false
