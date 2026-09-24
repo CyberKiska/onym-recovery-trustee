@@ -32,12 +32,25 @@ Done:
   revocation and closure as tombstones, replay nonces and idempotent
   outcomes.
 - **HTTP service:** a signed manifest and one request endpoint.
-- **Python client:** enrollment, holder poll and veto, and recovery,
-  checked end to end against three local trustees.
+- **Python client:** enrollment, holder poll, veto and closure, and a
+  recovery that completes with any t reachable trustees and resumes after
+  a restart; checked end to end against three local trustees.
+
+| Contract operation | Here |
+|---|---|
+| `enroll`, `read-enrollment`, `begin-recovery`, `read-recovery`, `cancel-recovery` (candidate, or holder veto), `revoke-enrollment`, `close-enrollment` | Served, plus `issue-challenge` to redeem an invitation |
+| `contribute-recovery` | The trustee's own decision: the first `read-recovery` after the cooldown seals and returns it |
+| `bootstrap-recovery`, `export-enrollment` | Refused with `bootstrap_unavailable`, `export_unavailable` |
+| `rotate-enrollment`, `finalize-recovery` | Refused with `invalid_request` |
+
+Refusals are declared in the manifest. Declaring an operation unsupported
+does not meet the contract's obligations for it: this is a partial
+implementation of a proposed binding, not complete conformance.
 
 There is no public deployment yet. The wire binding is a draft that has not
-been agreed with the Onym maintainers. Everything it decides lives in
-`src/wire.rs`.
+been agreed with the Onym maintainers. Its encodings, digests and objects
+live in `src/wire.rs`; the manifest in `src/lib.rs`, requests and receipts
+in `src/store.rs`, and the HTTP mapping in `src/main.rs`.
 
 | Module | Role |
 |---|---|
@@ -66,7 +79,9 @@ target/release/onym-recovery-trustee serve
 ```
 
 `onym-recovery-trustee` with no arguments lists every variable. The
-service speaks plain HTTP/1 and expects a TLS proxy in front of it.
+service speaks plain HTTP/1 and expects a TLS proxy in front of it. The
+database is created owner-only, and `serve` refuses a key file or database
+that group or others can read.
 
 | Route | |
 |---|---|
@@ -87,12 +102,22 @@ python3 tools/client.py enroll --threshold 2 --out vault \
     --trustee https://a.example CODE_A --trustee https://b.example CODE_B --trustee https://c.example CODE_C
 python3 tools/client.py poll --holder vault/holder.json
 python3 tools/client.py veto --holder vault/holder.json SESSION_ID
-python3 tools/client.py recover --map vault/map.json --map-key vault/map.key --factors vault/factors.json
+python3 tools/client.py close --holder vault/holder.json
+python3 tools/client.py recover --map vault/map.json --map-key vault/map.key \
+    --factors vault/factors.json --out recovered.json
 ```
 
-`enroll` writes the encrypted recovery map, its key, the holder's scoped
-keys and the independently held factor keys, all owner-only. It is a demo
-client, not a vault: keys sit in plain files and the artifact is synthetic.
+`enroll` creates `vault/` and writes the holder's scoped keys and the
+factor keys before it contacts any trustee, so a failed enrollment is
+closed again; then the encrypted recovery map and its key, all owner-only.
+`recover` saves its session first (`--session`, default
+`recovery-session.json`): an interrupted recovery resumes with the same
+cooldown and spends no further attempt. It needs any t reachable trustees
+and writes the recovered artifact to an owner-only file.
+
+It is a demo client, not a vault: keys sit in plain files side by side,
+which shows the protocol, not independent custody, and the artifact is
+synthetic.
 
 ## Tests
 
@@ -112,15 +137,23 @@ tampered version of every binding. See
 The lifecycle suite (`tests/lifecycle.rs`) drives `Store::handle` end to end:
 
 - enrollment only with an issued, unused challenge;
+- an enrollment's state told only to the key that holds it;
 - identical retries returning identical bytes, even after the replay window;
 - a restart during cooldown keeping the deadline;
 - holder veto against release, raced on two connections;
-- tombstones refusing replays, and bounded attempts.
+- tombstones refusing replays, custody gone from the database and its WAL,
+  and bounded attempts with signed refusals.
 
 The end-to-end check runs the client against three trustee processes: 2-of-3
-enrollment, holder poll and veto, refusals, release after the cooldown
-across a restart, reconstruction with two shares and not one, and a scan of
-error bodies and logs for planted secrets.
+enrollment read back from disk, cleanup of a failed enrollment, holder poll
+and veto, refusals, release after the cooldown across a restart, a resumed
+recovery with one trustee down at begin and another while polling,
+reconstruction with two shares and not one, expired pinned manifests, a
+trustee serving new keys, and a scan of error bodies and logs for planted
+secrets.
+
+CI (`.github/workflows/ci.yml`) runs all of this on Linux, checks the
+minimum Rust version, and runs `cargo deny` against `deny.toml`.
 
 ```sh
 cargo build
@@ -135,6 +168,27 @@ pip install --require-hashes -r tools/requirements.txt
 python3 tools/client.py share-fixtures               # SLIP-0039 fixtures
 ```
 
+## Limits
+
+- **Local state is trusted.** A trustee restored from an old snapshot, or
+  a clock set forward, goes undetected. A clock set back stops every
+  change until it catches up.
+- **Notices reach the holder only while an enrolled device polls.** Nothing
+  is pushed.
+- **One factor profile:** an independently held Ed25519 key signing the
+  session. It is evidence of possession, not an identity-verification
+  ceremony.
+- **Deletion is logical.** Revoke and close remove custody from the live
+  database at once and checkpoint its WAL; freed disk blocks, snapshots and
+  backups keep what they had. A released contribution cannot be recalled.
+- **No rate limiting in the service.** Bodies are bounded and attempts are
+  per enrollment; a public instance needs a proxy that limits connections
+  and request rates.
+- **Trust on first use.** The client trusts a manifest's key the first time
+  it fetches it over HTTPS; later it requires the same keys.
+- **One operator, one trust domain.** Local demo trustees declare the same
+  one, and the client says so.
+
 ## Failure behaviour
 
 - **Entropy.** It never falls back to a deterministic source. `hpke` 0.14.1
@@ -144,6 +198,10 @@ python3 tools/client.py share-fixtures               # SLIP-0039 fixtures
   `serve` also refuses to start if the OS RNG fails.
 - **Errors.** Every error is a stable code from the recovery contract's §15
   vocabulary, plus `invalid_request` and `request_conflict`. None carries data.
+  A failed factor is not an error but a signed `refused` receipt, because it
+  spent an attempt.
+- **Storage.** A database of an unknown schema version is refused, never
+  reused.
 
 ## Licence
 
