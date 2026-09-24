@@ -3,7 +3,8 @@
 #
 # - each trustee runs as uid 10001 with a read-only key and root;
 # - a 2-of-3 enrollment over HTTPS verifies every signed manifest and receipt;
-# - a trustee restarted during the cooldown keeps the pending session;
+# - a trustee recreated during the cooldown, as an upgrade does, keeps the
+#   pending session;
 # - recovery completes, and the enrollment is closed again.
 #
 # It spends one invitation per trustee. Run from anywhere:
@@ -44,13 +45,13 @@ $client recover --map "$vault/map.json" --map-key "$vault/map.key" --factors "$v
     --session "$work/session.json" --out "$work/artifact.json" --interval 2 >"$work/recover.log" 2>&1 &
 recovering=$!
 sleep 4
-docker compose restart trustee-b >/dev/null 2>&1
+docker compose up -d --force-recreate --no-deps trustee-b >/dev/null 2>&1
 $client poll --holder "$vault/holder.json" >"$work/poll.log"
 if [ "$(grep -c ' cooling_down' "$work/poll.log")" != 3 ]; then
     cat "$work/poll.log" "$work/recover.log"
     exit 1
 fi
-echo "ok  after a restart during the cooldown, every trustee still holds the session"
+echo "ok  a trustee recreated during the cooldown still holds the session"
 
 wait "$recovering" || { cat "$work/recover.log"; exit 1; }
 test -s "$work/artifact.json"
