@@ -152,8 +152,8 @@ def check(servers):
     # --- Refusals ---------------------------------------------------------
     errors = []
     wrong = c.Candidate(recovery_map, factors)
-    errors.append(refused(lambda: first.post(wrong.begin_request(first, factor=other_factor)),
-                          400, "invalid_candidate_factor"))
+    refusal = first.call(wrong.begin_request(first, factor=other_factor), "begin-recovery", wrong.session_id)
+    assert (refusal["newState"], refusal["reason"]) == ("refused", "invalid_candidate_factor")
     unknown = c.Candidate(dict(recovery_map, enrollmentId=c.random_id()), factors)
     errors.append(refused(lambda: first.post(unknown.begin_request(first)), 400, "invalid_request"))
     stranger = Ed25519PrivateKey.generate()
@@ -173,8 +173,8 @@ def check(servers):
         errors.append(refused(lambda: first.post(probe), 400, "invalid_request"))
     limit = first.manifest["limits"]["maximumRequestBytes"]
     errors.append(refused(lambda: c.http(first.endpoint, b" " * (limit + 1)), 400, "invalid_request"))
-    ok("wrong factor, unknown enrollment, forged key, unsupported operations and oversize "
-       "bodies get their declared refusals")
+    ok("a wrong factor gets a signed refusal; unknown enrollment, forged key, unsupported "
+       "operations and oversize bodies get their declared refusals")
 
     # --- A recovery that completes ----------------------------------------
     candidate = c.Candidate(recovery_map, factors)

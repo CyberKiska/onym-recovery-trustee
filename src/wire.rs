@@ -737,6 +737,10 @@ pub(crate) struct Receipt {
     pub remaining_attempts: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub destination_keys_digest: Option<String>,
+    /// `begin-recovery`: digest of the session variant evaluated, evidence
+    /// included (abstract §5.9 evidence digest).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evidence_digest: Option<String>,
     /// The signed `TrusteeContribution`, once released.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contribution: Option<Value>,
@@ -769,6 +773,8 @@ pub(crate) struct Notice {
     pub state: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<&'static str>,
+    /// This trustee's contribution has left; a veto can no longer recall it.
+    pub released: bool,
     pub cooldown_ends_at: String,
     pub expires_at: String,
 }
@@ -786,25 +792,31 @@ pub(crate) fn enrollment_state(
     }
 }
 
-/// The contract name (abstract §7.2) of a local session state, with the
-/// reason code a candidate is owed for a veto or a refusal.
+/// The contract name (abstract §7.2) of a local session state.
 pub(crate) fn session_state(
     status: SessionStatus,
     cooldown_ends_at: i64,
     expires_at: i64,
     now: i64,
-) -> (&'static str, Option<&'static str>) {
+) -> &'static str {
     match status {
-        SessionStatus::CoolingDown | SessionStatus::Released if now >= expires_at => {
-            ("expired", None)
-        }
-        SessionStatus::CoolingDown if now < cooldown_ends_at => ("cooling_down", None),
-        SessionStatus::CoolingDown | SessionStatus::Released => ("collecting", None),
-        SessionStatus::Finalized => ("finalized", None),
-        SessionStatus::Cancelled => ("cancelled", None),
-        SessionStatus::Vetoed => ("cancelled", Some(Code::RecoveryVetoed.as_str())),
+        SessionStatus::CoolingDown | SessionStatus::Released if now >= expires_at => "expired",
+        SessionStatus::CoolingDown if now < cooldown_ends_at => "cooling_down",
+        SessionStatus::CoolingDown | SessionStatus::Released => "collecting",
+        SessionStatus::Finalized => "finalized",
+        SessionStatus::Cancelled | SessionStatus::Vetoed => "cancelled",
+        SessionStatus::Refused => "refused",
+    }
+}
+
+/// The reason code a caller is owed for a veto or a refusal. Both states
+/// are terminal, so the reason never changes once given.
+pub(crate) fn session_reason(status: SessionStatus) -> Option<&'static str> {
+    match status {
+        SessionStatus::Vetoed => Some(Code::RecoveryVetoed.as_str()),
         // The only refusal recorded as a session is a failed factor.
-        SessionStatus::Refused => ("refused", Some(Code::InvalidCandidateFactor.as_str())),
+        SessionStatus::Refused => Some(Code::InvalidCandidateFactor.as_str()),
+        _ => None,
     }
 }
 

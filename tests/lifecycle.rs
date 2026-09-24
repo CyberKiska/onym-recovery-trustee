@@ -526,6 +526,16 @@ fn a_restart_during_cooldown_keeps_the_deadline() {
         .unwrap();
     assert_eq!(again["contribution"], released["contribution"]);
     assert_eq!(again["newState"], "collecting");
+
+    // The holder's poll says the contribution has left.
+    let poll = h
+        .call(
+            &read_enrollment(4, &later(RELEASED_AT, 60)),
+            &later(RELEASED_AT, 60),
+        )
+        .unwrap();
+    assert_eq!(poll["sessions"][0]["state"], "collecting");
+    assert_eq!(poll["sessions"][0]["released"], true);
 }
 
 #[test]
@@ -599,6 +609,7 @@ fn a_holder_veto_blocks_release() {
         (vetoed["oldState"].as_str(), vetoed["newState"].as_str()),
         (Some("cooling_down"), Some("cancelled"))
     );
+    assert_eq!(vetoed["reason"], "recovery_vetoed");
 
     let read = h
         .call(&read_recovery(&session, 2, RELEASED_AT), RELEASED_AT)
@@ -614,6 +625,7 @@ fn a_holder_veto_blocks_release() {
     assert_eq!(poll["newState"], "active");
     assert_eq!(poll["sessions"][0]["sessionId"], json!(session));
     assert_eq!(poll["sessions"][0]["reason"], "recovery_vetoed");
+    assert_eq!(poll["sessions"][0]["released"], false);
 }
 
 #[test]
@@ -721,10 +733,18 @@ fn attempts_are_bounded_and_counted_at_factor_evaluation() {
     let mut h = Harness::new();
     h.enroll();
 
-    // A wrong factor spends an attempt; its retry replays the refusal.
+    // A wrong factor spends an attempt and gets a signed refusal; its retry
+    // replays the same bytes.
     let wrong = begin_request(&session_id(1), &impostor(), |_| {});
-    assert_eq!(h.raw(&wrong, BEGUN_AT), Err(Code::InvalidCandidateFactor));
-    assert_eq!(h.raw(&wrong, BEGUN_AT), Err(Code::InvalidCandidateFactor));
+    let refusal = h.raw(&wrong, BEGUN_AT).unwrap();
+    assert_eq!(h.raw(&wrong, BEGUN_AT), Ok(refusal.clone()));
+    let refusal = h.call(&wrong, BEGUN_AT).unwrap();
+    assert_eq!(
+        (&refusal["newState"], &refusal["reason"]),
+        (&json!("refused"), &json!("invalid_candidate_factor"))
+    );
+    assert_eq!(refusal["remainingAttempts"], 2);
+    assert!(refusal["evidenceDigest"].is_string());
 
     // A session for another enrollment gets the uniform refusal and spends
     // nothing.

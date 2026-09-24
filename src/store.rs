@@ -405,16 +405,16 @@ impl Store {
         let sessions = load_sessions(&tx, enrollment)?
             .into_iter()
             .map(|session| {
-                let (state, reason) = wire::session_state(
-                    session.status,
-                    session.cooldown_ends_at,
-                    session.expires_at,
-                    now,
-                );
                 Ok(Notice {
+                    state: wire::session_state(
+                        session.status,
+                        session.cooldown_ends_at,
+                        session.expires_at,
+                        now,
+                    ),
+                    reason: wire::session_reason(session.status),
+                    released: session.contribution.is_some(),
                     session_id: session.session_id,
-                    state,
-                    reason,
                     cooldown_ends_at: time(session.cooldown_ends_at)?,
                     expires_at: time(session.expires_at)?,
                 })
@@ -508,20 +508,23 @@ impl Store {
         self.session_receipt(trustee, &session.session_id)
     }
 
-    /// The recorded outcome of `begin-recovery`, rebuilt from its row.
+    /// The recorded outcome of `begin-recovery`, rebuilt from its row: a
+    /// session cooling down, or one refused for its factor. Both spent an
+    /// attempt, so both are signed.
     fn session_receipt(&self, trustee: &Trustee, session_id: &str) -> Result<Vec<u8>, Code> {
         let session =
             load_session(&self.connection, session_id)?.ok_or(Code::TemporarilyUnavailable)?;
-        if session.status == SessionStatus::Refused {
-            return Err(Code::InvalidCandidateFactor);
-        }
         let row = session.enrollment(&self.connection)?;
         let mut receipt = session.receipt(trustee, &row.enrollment, "begin-recovery")?;
         receipt.request_id = session_id.to_owned();
         receipt.old_state = "none".into();
-        receipt.new_state = "cooling_down".into();
+        // What begin decided, never what happened later: retries are identical.
+        let refused = session.status == SessionStatus::Refused;
+        receipt.new_state = if refused { "refused" } else { "cooling_down" }.into();
+        receipt.reason = wire::session_reason(session.status).filter(|_| refused);
         receipt.recorded_at = time(session.created_at)?;
         receipt.remaining_attempts = Some(session.remaining_attempts);
+        receipt.evidence_digest = Some(wire::digest(&session.request));
         Ok(wire::sign_object(&receipt, &trustee.signing_key))
     }
 
@@ -541,7 +544,7 @@ impl Store {
         spend_nonce(&tx, &Scope::session(&signed.target), &signed, trustee, now)?;
         let row = session.enrollment(&tx)?;
 
-        let (old_state, _) = wire::session_state(
+        let old_state = wire::session_state(
             session.status,
             session.cooldown_ends_at,
             session.expires_at,
@@ -579,13 +582,13 @@ impl Store {
         };
         tx.commit()?;
 
-        let (new_state, reason) =
+        let new_state =
             wire::session_state(status, session.cooldown_ends_at, session.expires_at, now);
         let mut receipt = session.receipt(trustee, &row.enrollment, "read-recovery")?;
         receipt.request_id = signed.request_id;
         receipt.old_state = old_state.into();
         receipt.new_state = new_state.into();
-        receipt.reason = reason;
+        receipt.reason = wire::session_reason(status);
         receipt.recorded_at = time(now)?;
         receipt.contribution = contribution
             .map(|bytes| wire::parse(&bytes).ok_or(Code::TemporarilyUnavailable))
@@ -635,9 +638,8 @@ impl Store {
             "UPDATE sessions SET status = ?2 WHERE session_id = ?1",
             params![signed.target, status.name()],
         )?;
-        let state = |status| {
-            wire::session_state(status, session.cooldown_ends_at, session.expires_at, now).0
-        };
+        let state =
+            |status| wire::session_state(status, session.cooldown_ends_at, session.expires_at, now);
         record_outcome(
             &tx,
             &scope,
@@ -723,7 +725,10 @@ impl Store {
                 let session = load_session(&self.connection, session_id)?
                     .ok_or(Code::TemporarilyUnavailable)?;
                 let row = session.enrollment(&self.connection)?;
-                session.receipt(trustee, &row.enrollment, &operation)?
+                let mut receipt = session.receipt(trustee, &row.enrollment, &operation)?;
+                // Terminal once recorded, so a retry signs the same reason.
+                receipt.reason = wire::session_reason(session.status);
+                receipt
             }
             Scope::Enrollment(enrollment_id, sequence) => {
                 let row = load_enrollment(&self.connection, enrollment_id, *sequence)?;
