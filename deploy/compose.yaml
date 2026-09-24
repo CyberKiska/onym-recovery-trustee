@@ -1,0 +1,98 @@
+# One operator running three trustees, a 2-of-3 set, behind one Caddy that
+# terminates TLS. One operator is one trust domain, and every manifest
+# declares it, so a client warns that these trustees are not independent.
+# Setup and operation: README.md.
+
+name: onym-recovery-trustee
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: 10m, max-file: "3" }
+
+x-trustee: &trustee
+  image: ${TRUSTEE_IMAGE:-onym-recovery-trustee:local}
+  build:
+    context: ..
+  restart: unless-stopped
+  # Writes go to /data only; SQLite keeps temporaries in memory.
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  # A core dump would hold the keys and any share being opened.
+  ulimits:
+    core: 0
+  mem_limit: 128m
+  pids_limit: 32
+  logging: *logging
+  # Reachable from Caddy only; no port is published.
+  networks: [internal]
+
+x-environment: &environment
+  TRUSTEE_TRUST_DOMAIN: ${TRUST_DOMAIN:?set TRUST_DOMAIN in .env}
+  TRUSTEE_CONTACT: ${CONTACT:?set CONTACT in .env}
+  TRUSTEE_JURISDICTION: ${JURISDICTION:-none}
+  TRUSTEE_MIN_COOLDOWN: ${MIN_COOLDOWN:-PT1M}
+
+services:
+  caddy:
+    image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      CADDY_EMAIL: ${CADDY_EMAIL:?set CADDY_EMAIL in .env}
+      TRUSTEE_A_HOST: ${TRUSTEE_A_HOST:?set TRUSTEE_A_HOST in .env}
+      TRUSTEE_B_HOST: ${TRUSTEE_B_HOST:?set TRUSTEE_B_HOST in .env}
+      TRUSTEE_C_HOST: ${TRUSTEE_C_HOST:?set TRUSTEE_C_HOST in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and the ACME account survive restarts.
+      - caddy-data:/data
+      - caddy-config:/config
+    mem_limit: 128m
+    logging: *logging
+    networks: [internal]
+    depends_on: [trustee-a, trustee-b, trustee-c]
+
+  trustee-a:
+    <<: *trustee
+    environment:
+      <<: *environment
+      TRUSTEE_COMPONENT_ID: onym:component:${COMPONENT_PREFIX:?set COMPONENT_PREFIX in .env}-a
+      TRUSTEE_PUBLIC_URL: https://${TRUSTEE_A_HOST}
+    secrets: [{ source: trustee-a-key, target: trustee-key }]
+    volumes: [trustee-a-data:/data]
+
+  trustee-b:
+    <<: *trustee
+    environment:
+      <<: *environment
+      TRUSTEE_COMPONENT_ID: onym:component:${COMPONENT_PREFIX}-b
+      TRUSTEE_PUBLIC_URL: https://${TRUSTEE_B_HOST}
+    secrets: [{ source: trustee-b-key, target: trustee-key }]
+    volumes: [trustee-b-data:/data]
+
+  trustee-c:
+    <<: *trustee
+    environment:
+      <<: *environment
+      TRUSTEE_COMPONENT_ID: onym:component:${COMPONENT_PREFIX}-c
+      TRUSTEE_PUBLIC_URL: https://${TRUSTEE_C_HOST}
+    secrets: [{ source: trustee-c-key, target: trustee-key }]
+    volumes: [trustee-c-data:/data]
+
+# Mounted read-only at /run/secrets/trustee-key. Each file must be owned by
+# uid 10001 and readable by it alone; the service refuses anything wider.
+secrets:
+  trustee-a-key: { file: ./secrets/trustee-a.key }
+  trustee-b-key: { file: ./secrets/trustee-b.key }
+  trustee-c-key: { file: ./secrets/trustee-c.key }
+
+volumes:
+  trustee-a-data:
+  trustee-b-data:
+  trustee-c-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  internal:

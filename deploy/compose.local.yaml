@@ -1,0 +1,6 @@
+# Local override (see local.env): the three sites listen on
+# https://localhost:8441-8443, reachable from this machine only.
+services:
+  caddy:
+    ports: !override
+      - "127.0.0.1:8441-8443:8441-8443"
