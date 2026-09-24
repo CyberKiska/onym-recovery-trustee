@@ -304,9 +304,22 @@ impl Store {
             )
             .optional()?;
         let invitation = invitation.ok_or(Code::InvalidEnrollment)?;
+        if request.trustee_key_id != trustee.key_id() {
+            return Err(Code::InvalidEnrollment);
+        }
+
+        let enrollment = trustee.accept_enrollment(&context, &sealed, now)?;
+        trustee.check_artifact(&enrollment, &artifact)?;
         // A known enrollment ID is a tombstone or a rotation, and rotation
-        // needs lineage this draft does not define yet.
+        // needs lineage this draft does not define yet. Its state is told
+        // only to the key that holds it; any other signer is refused like a
+        // bad envelope and spends the invitation, as enrolling would.
         if let Some(existing) = load_current_enrollment(&tx, &context.enrollment_id)? {
+            if existing.enrollment.authorization_key != enrollment.authorization_key {
+                spend_challenge(&tx, &challenge, &invitation, now)?;
+                tx.commit()?;
+                return Err(Code::InvalidEnrollment);
+            }
             return Err(match existing.status {
                 EnrollmentStatus::Revoked | EnrollmentStatus::Closed => Code::EnrollmentRevoked,
                 _ if context.enrollment_sequence <= existing.state().sequence => {
@@ -315,12 +328,6 @@ impl Store {
                 _ => Code::InvalidEnrollment,
             });
         }
-        if request.trustee_key_id != trustee.key_id() {
-            return Err(Code::InvalidEnrollment);
-        }
-
-        let enrollment = trustee.accept_enrollment(&context, &sealed, now)?;
-        trustee.check_artifact(&enrollment, &artifact)?;
         let record =
             serde_json::to_string(&enrollment).map_err(|_| Code::TemporarilyUnavailable)?;
         tx.execute(
@@ -338,14 +345,7 @@ impl Store {
                 artifact
             ],
         )?;
-        tx.execute(
-            "UPDATE challenges SET used_at = ?2 WHERE challenge = ?1",
-            params![challenge, now],
-        )?;
-        tx.execute(
-            "UPDATE invitations SET used_at = ?2 WHERE digest = ?1",
-            params![invitation, now],
-        )?;
+        spend_challenge(&tx, &challenge, &invitation, now)?;
         tx.commit()?;
         self.enrollment_receipt(trustee, &challenge, &sealed, &artifact)
     }
@@ -910,6 +910,24 @@ fn load_sessions(
         SessionRow::read,
     )?;
     rows.collect()
+}
+
+/// Mark a challenge and its invitation used.
+fn spend_challenge(
+    tx: &Transaction,
+    challenge: &str,
+    invitation: &str,
+    now: i64,
+) -> rusqlite::Result<()> {
+    tx.execute(
+        "UPDATE challenges SET used_at = ?2 WHERE challenge = ?1",
+        params![challenge, now],
+    )?;
+    tx.execute(
+        "UPDATE invitations SET used_at = ?2 WHERE digest = ?1",
+        params![invitation, now],
+    )?;
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

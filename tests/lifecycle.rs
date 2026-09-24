@@ -87,15 +87,23 @@ fn session_id(n: u8) -> String {
 
 /// The pinned envelope, re-signed for `challenge`, and its context.
 fn envelope(challenge: &str) -> (Vec<u8>, EnrollmentContext) {
+    envelope_by(&holder(), challenge)
+}
+
+/// The pinned envelope with `key` as its authorization key.
+fn envelope_by(key: &SigningKey, challenge: &str) -> (Vec<u8>, EnrollmentContext) {
+    let public = key.verifying_key().to_bytes();
     let mut envelope = fixture("binding/envelope.json");
     envelope
         .as_object_mut()
         .unwrap()
         .remove("holderAuthorization");
     envelope["trusteeChallenge"] = json!(challenge);
-    sign(&mut envelope, "holderAuthorization", &holder());
+    envelope["authorizationPublicKey"] = json!(hex::encode(public));
+    sign(&mut envelope, "holderAuthorization", key);
     let mut context = fixture("binding/enrollment.json")["context"].clone();
     context["trusteeChallenge"] = json!(challenge);
+    context["authorizationKeyDigest"] = json!(wire::key_digest(&public));
     (
         wire::canonical(&envelope),
         serde_json::from_value(context).unwrap(),
@@ -104,7 +112,11 @@ fn envelope(challenge: &str) -> (Vec<u8>, EnrollmentContext) {
 
 /// A freshly sealed enrollment request; each call seals anew.
 fn enroll_request(challenge: &str) -> Vec<u8> {
-    let (envelope, context) = envelope(challenge);
+    enroll_request_by(&holder(), challenge)
+}
+
+fn enroll_request_by(key: &SigningKey, challenge: &str) -> Vec<u8> {
+    let (envelope, context) = envelope_by(key, challenge);
     let trustee = trustee();
     let sealed = crypto::seal(&trustee.hpke_public_key(), &context.info(), &envelope).unwrap();
     wire::canonical(&json!({
@@ -384,6 +396,50 @@ fn enrollment_needs_an_issued_unused_challenge() {
     assert_eq!(
         h.raw(&enroll_request(&stale), &later(&next_day, 15 * 60)),
         Err(Code::InvalidEnrollment)
+    );
+}
+
+#[test]
+fn enrollment_state_is_told_only_to_its_holder() {
+    let mut h = Harness::new();
+    h.enroll();
+    let now = later(ENROLLED_AT, 60);
+
+    // An envelope that does not open looks the same for known and unknown IDs.
+    let challenge = h.challenge(&now);
+    for id in [enrollment_id(), "e2".repeat(32)] {
+        let mut request = wire::parse(&enroll_request(&challenge)).unwrap();
+        request["context"]["enrollmentId"] = json!(id);
+        request["sealedEnvelope"] = json!(STANDARD.encode([0u8; 64]));
+        let request = wire::canonical(&request);
+        assert_eq!(h.raw(&request, &now), Err(Code::InvalidEnrollment));
+    }
+
+    // A valid envelope signed by another key gets the same refusal, and
+    // spends the invitation as an enrollment would.
+    let invitation = h.store.create_invitation(7 * DAY, at(&now)).unwrap();
+    let challenge = h.redeem(&invitation, &now).unwrap();
+    let request = enroll_request_by(&impostor(), &challenge);
+    assert_eq!(h.raw(&request, &now), Err(Code::InvalidEnrollment));
+    assert_eq!(h.raw(&request, &now), Err(Code::InvalidEnrollment));
+    assert_eq!(h.redeem(&invitation, &now), Err(Code::InvalidRequest));
+
+    // The holder's own key learns the state; after closure, nobody else.
+    let challenge = h.challenge(&now);
+    assert_eq!(
+        h.raw(&enroll_request(&challenge), &now),
+        Err(Code::StaleEnrollmentSequence)
+    );
+    h.call(&close(1, &now), &now).unwrap();
+    let challenge = h.challenge(&now);
+    assert_eq!(
+        h.raw(&enroll_request_by(&impostor(), &challenge), &now),
+        Err(Code::InvalidEnrollment)
+    );
+    let challenge = h.challenge(&now);
+    assert_eq!(
+        h.raw(&enroll_request(&challenge), &now),
+        Err(Code::EnrollmentRevoked)
     );
 }
 
