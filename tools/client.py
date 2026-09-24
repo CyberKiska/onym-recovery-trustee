@@ -22,6 +22,7 @@ import os
 import re
 import secrets
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -794,7 +795,8 @@ def recover(candidate, trustees, interval, save=lambda: None, log=print):
     """Collect t verified shares, each trustee on its own. An unreachable
     trustee is retried every round; one that refuses or does not verify is
     dropped. Stops with t shares, or when fewer than t trustees remain or
-    the session expires. Calls `save` after each new contribution."""
+    the session expires. Calls `save` after each new contribution; if that
+    fails, recovery stops rather than go on without its checkpoint."""
     live = {trustee.component_id: trustee for trustee in trustees}
     for name, contribution in candidate.saved.items():
         candidate.accept(live[name], contribution)
@@ -805,31 +807,40 @@ def recover(candidate, trustees, interval, save=lambda: None, log=print):
         if last.get(name) != line:
             last[name] = line
             log(f"{name}: {line}")
+
+    def poll(name, trustee):
+        """Begin at a trustee once, then read; its envelope once released."""
+        if name not in current:
+            live[name] = trustee = trustee.refreshed()
+            # Idempotent: a resumed or retried begin resends the same bytes.
+            receipt = candidate.begin(trustee)
+            if receipt["newState"] == "refused":
+                raise ValueError(f"refused ({receipt['reason']})")
+            current.add(name)
+            note(name, f"cooling down until {receipt['cooldownEndsAt']}")
+        receipt, envelope = candidate.read(trustee)
+        if not envelope and receipt["newState"] not in ("cooling_down", "collecting"):
+            raise ValueError(f"{receipt['newState']} {receipt.get('reason', '')}".strip())
+        return envelope
+
     while len(candidate.envelopes) < candidate.threshold:
         for name, trustee in list(live.items()):
             if name in candidate.envelopes or len(candidate.envelopes) >= candidate.threshold:
                 continue
             try:
-                if name not in current:
-                    live[name] = trustee = trustee.refreshed()
-                    # Idempotent: a resumed or retried begin resends the same bytes.
-                    receipt = candidate.begin(trustee)
-                    if receipt["newState"] == "refused":
-                        raise ValueError(f"refused ({receipt['reason']})")
-                    current.add(name)
-                    note(name, f"cooling down until {receipt['cooldownEndsAt']}")
-                receipt, envelope = candidate.read(trustee)
-                if envelope:
-                    save()
-                    note(name, "contributed")
-                elif receipt["newState"] not in ("cooling_down", "collecting"):
-                    raise ValueError(f"{receipt['newState']} {receipt.get('reason', '')}".strip())
+                envelope = poll(name, trustee)
             except FAILURES as error:
                 if transient(error):
                     note(name, f"unavailable ({describe(error)}); retrying")
                 else:
                     del live[name]
                     note(name, f"dropped ({describe(error)})")
+                continue
+            if envelope:
+                # Outside the trustee's error handling: a local write failure
+                # is not that trustee being unavailable.
+                save()
+                note(name, "contributed")
         if len(candidate.envelopes) >= candidate.threshold:
             break
         if len(live) < candidate.threshold:
@@ -864,11 +875,13 @@ def restore(recovery_map, shares):
 
 
 def write_private(path, value, replace=False):
-    """Write an owner-only file whole: a temporary file, fsync, then an
-    atomic link (never overwriting) or rename (`replace`)."""
+    """Write an owner-only file whole: a uniquely named temporary file beside
+    it, fsync, then an atomic link (never overwriting) or rename (`replace`).
+    A crash leaves the old file and at most a stray `.<name>.*.tmp`, which
+    holds the same private data and never blocks a later write."""
     path = Path(path)
-    temporary = path.with_name(path.name + ".tmp")
-    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    temporary = Path(temporary)
     try:
         with os.fdopen(descriptor, "wb") as file:
             file.write(value.encode() if isinstance(value, str) else canonical(value))

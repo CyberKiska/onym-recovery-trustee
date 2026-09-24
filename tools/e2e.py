@@ -6,7 +6,8 @@
 - the begin, holder poll, veto and refusal paths behave as specified;
 - release happens only after the cooldown, and a restart keeps the deadline;
 - recovery completes with one trustee down at begin and another down while
-  polling, resuming the candidate's saved session after a restart;
+  polling, resuming the candidate's saved session after a restart; a failed
+  local save stops it, and a killed client leaves its files whole;
 - two shares rebuild the key and open the artifact; one share, a repeated or
   foreign share, or an altered artifact header does not;
 - expired pinned manifests still work; a trustee whose keys changed does not,
@@ -135,6 +136,16 @@ def check(servers, work):
         assert raises(ValueError, lambda: c.seconds(spelling)), spelling
     assert raises(ValueError, lambda: c.unb64("AB==")) and raises(ValueError, lambda: c.uint(True))
     ok("Python's stdlib JSON reproduces Discovery's canonical bytes; strict encodings match Rust's")
+
+    journal = work / "journal.json"
+    c.write_private(journal, {"saved": 1})
+    crash = ("import os, sys; sys.path.insert(0, sys.argv[1]); import client; os.replace = lambda *_: os._exit(1); "
+             "client.write_private(sys.argv[2], {'saved': 2}, replace=True)")
+    assert subprocess.run([sys.executable, "-c", crash, str(ROOT / "tools"), str(journal)]).returncode == 1
+    assert c.parse(journal.read_bytes()) == {"saved": 1}
+    c.write_private(journal, {"saved": 3}, replace=True)
+    assert c.parse(journal.read_bytes()) == {"saved": 3} and len(list(work.glob(".journal.json.*.tmp"))) == 1
+    ok("a client killed before its rename leaves the old file whole, and a stray that blocks no later write")
 
     trustees = [c.Trustee.fetch(server.origin) for server in servers]
     first, second, third = trustees
@@ -286,6 +297,21 @@ def check(servers, work):
     _, old, _ = c.open_map(*c.seal_map(dict(recovery_map, trusteeManifests=expired)))
     assert [trustee.refreshed().operator for trustee in old] == [trustee.operator for trustee in pinned]
     ok("expired manifests pinned in a map still open it; the trustees' current ones continue them")
+
+    # --- A local write failure during recovery ------------------------------
+    interrupted = c.Candidate(recovery_map, factors)
+    checkpoint = interrupted.state()
+
+    def full_disk():
+        raise OSError(28, "No space left on device")
+
+    log = []
+    assert raises(OSError, lambda: c.recover(interrupted, pinned, 0.5, save=full_disk, log=log.append)), log
+    [(name, contribution)] = interrupted.contributions.items()
+    again = c.Candidate(recovery_map, factors, checkpoint)
+    c.recover(again, pinned, 0.5, log=log.append)
+    assert again.contributions[name] == contribution
+    ok("a failed local save stops recovery, not the trustee; the saved session resumes and gets the same bytes")
 
     # --- The recovered vault holds the enrollment's authority ---------------
     keys = artifact["payload"]["authorizationKeys"]
