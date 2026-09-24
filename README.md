@@ -9,6 +9,17 @@ share and the holder's signed terms when it takes custody. At recovery, once
 the enrolled policy allows it, it re-seals that same holder-signed envelope to
 a fresh destination key. The destination device combines shares itself.
 
+## Quick start
+
+```sh
+cargo test                                   # protocol core, SQLite lifecycle, vectors
+python3 -m venv .venv && .venv/bin/pip install --require-hashes -r tools/requirements.txt
+cargo build && .venv/bin/python tools/e2e.py # three local trustees, 2-of-3, about 20 s
+```
+
+The same stack behind TLS in containers, on one machine or a public host:
+[`deploy/README.md`](deploy/README.md).
+
 ## What it is not
 
 - **Not a secret-sharing implementation.** No code here splits, combines or
@@ -119,7 +130,13 @@ closed again; then the encrypted recovery map and its key, all owner-only.
 `recover` saves its session first (`--session`, default
 `recovery-session.json`): an interrupted recovery resumes with the same
 cooldown and spends no further attempt. It needs any t reachable trustees
-and writes the recovered artifact to an owner-only file.
+and writes the recovered artifact to an owner-only file. A trustee that is
+unreachable, or whose proxy answers 502, 503 or 504, is retried until the
+session expires; one that refuses or sends anything that does not verify
+is dropped, alone. If saving fails, recovery stops, and a rerun resumes
+from the last saved session. Files are written whole or not at all; a
+crash can leave a hidden `.<name>.*.tmp` beside one, holding the same
+private data, which is safe to delete.
 
 It is a demo client, not a vault: keys sit in plain files side by side,
 which shows the protocol, not independent custody, and the artifact is
@@ -153,10 +170,11 @@ The lifecycle suite (`tests/lifecycle.rs`) drives `Store::handle` end to end:
 The end-to-end check runs the client against three trustee processes: 2-of-3
 enrollment read back from disk, cleanup of a failed enrollment, holder poll
 and veto, refusals, release after the cooldown across a restart, a resumed
-recovery with one trustee down at begin and another while polling,
-reconstruction with two shares and not one, expired pinned manifests, a
-trustee serving new keys, and a scan of error bodies and logs for planted
-secrets.
+recovery with one trustee down at begin and another while polling, a
+trustee serving malformed objects, a failed save and a client killed
+mid-write, reconstruction with two shares and not one, expired pinned
+manifests, a trustee serving new keys, and a scan of error bodies and logs
+for planted secrets.
 
 CI (`.github/workflows/ci.yml`) runs all of this on Linux, checks the
 minimum Rust version, runs `cargo deny` against `deny.toml`, and brings up
@@ -189,8 +207,8 @@ python3 tools/client.py share-fixtures               # SLIP-0039 fixtures
   database at once and checkpoint its WAL; freed disk blocks, snapshots and
   backups keep what they had. A released contribution cannot be recalled.
 - **No rate limiting in the service.** Bodies are bounded and attempts are
-  per enrollment; a public instance needs a proxy that limits connections
-  and request rates.
+  per enrollment; a public instance needs a connection and request limit in
+  front (see [Before going public](deploy/README.md#before-going-public)).
 - **Trust on first use.** The client trusts a manifest's key the first time
   it fetches it over HTTPS; later it requires the same keys.
 - **One operator, one trust domain.** Local demo trustees declare the same
@@ -209,6 +227,11 @@ python3 tools/client.py share-fixtures               # SLIP-0039 fixtures
   spent an attempt.
 - **Storage.** A database of an unknown schema version is refused, never
   reused.
+
+## Security
+
+Report vulnerabilities privately, as [`SECURITY.md`](SECURITY.md)
+describes.
 
 ## Licence
 
