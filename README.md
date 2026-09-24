@@ -14,7 +14,7 @@ a fresh destination key. The destination device combines shares itself.
 ```sh
 cargo test                                   # protocol core, SQLite lifecycle, vectors
 python3 -m venv .venv && .venv/bin/pip install --require-hashes -r tools/requirements.txt
-cargo build && .venv/bin/python tools/e2e.py # three local trustees, 2-of-3, about 20 s
+cargo build && .venv/bin/python tools/e2e.py # three local trustees, 2-of-3, about 15 s
 ```
 
 The same stack behind TLS in containers, on one machine or a public host:
