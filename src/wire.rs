@@ -16,6 +16,8 @@ use crate::crypto;
 use crate::state::{EnrollmentStatus, SessionStatus};
 
 pub const BINDING_VERSION: &str = "draft-1";
+pub const SEAT: &str = "identity.recovery-trustee";
+pub const RECOVERY_PROFILE_ID: &str = "onym:recovery-profile:trustee-v1";
 pub const IMPLEMENTATION_PROFILE_ID: &str =
     "onym:recovery-implementation:shamir-trustees-slip39-v1";
 /// The only recovery mode the identity profile supports today.
@@ -241,7 +243,7 @@ pub(crate) fn hex_bytes<const N: usize>(text: &str) -> Option<[u8; N]> {
         .then_some(out)
 }
 
-pub(crate) fn hex32(text: &str) -> Option<[u8; 32]> {
+pub fn hex32(text: &str) -> Option<[u8; 32]> {
     hex_bytes(text)
 }
 
@@ -250,7 +252,7 @@ pub(crate) fn is_digest(text: &str) -> bool {
 }
 
 /// `onym:component:` followed by 1-64 of `[a-z0-9-]`.
-pub(crate) fn is_component_id(text: &str) -> bool {
+pub fn is_component_id(text: &str) -> bool {
     text.strip_prefix("onym:component:").is_some_and(|id| {
         (1..=64).contains(&id.len())
             && id

@@ -20,6 +20,27 @@ use crate::state::{self, EnrollmentState, EnrollmentStatus, Release, SessionStat
 use crate::wire::{self, Code, Notice, Receipt, Signed};
 use crate::{Enrollment, Trustee, crypto};
 
+/// Operations [`Store::handle`] serves.
+pub const OPERATIONS: [&str; 8] = [
+    "issue-challenge",
+    "enroll",
+    "read-enrollment",
+    "begin-recovery",
+    "read-recovery",
+    "cancel-recovery",
+    "revoke-enrollment",
+    "close-enrollment",
+];
+
+/// Contract operations this trustee declares unsupported, with the code it
+/// answers them with.
+pub const REFUSED: [(&str, Code); 4] = [
+    ("bootstrap-recovery", Code::BootstrapUnavailable),
+    ("export-enrollment", Code::ExportUnavailable),
+    ("finalize-recovery", Code::InvalidRequest),
+    ("rotate-enrollment", Code::InvalidRequest),
+];
+
 const CHALLENGE_LIFETIME_SECS: i64 = 15 * 60;
 /// Unused challenges one invitation may have outstanding.
 const MAX_OPEN_CHALLENGES: i64 = 4;
@@ -175,10 +196,10 @@ impl Store {
             "revoke-enrollment" | "close-enrollment" => {
                 self.end_enrollment(trustee, signed(request)?, now)
             }
-            // Declared unsupported by this trustee.
-            "bootstrap-recovery" => Err(Code::BootstrapUnavailable),
-            "export-enrollment" => Err(Code::ExportUnavailable),
-            _ => Err(Code::InvalidRequest),
+            other => Err(REFUSED
+                .iter()
+                .find(|(name, _)| *name == other)
+                .map_or(Code::InvalidRequest, |&(_, code)| code)),
         }
     }
 

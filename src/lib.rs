@@ -23,7 +23,7 @@ pub mod wire;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use ed25519_dalek::SigningKey;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
 use crate::crypto::HpkePrivateKey;
@@ -42,6 +42,31 @@ pub struct Limits {
     pub max_enrollment_term_secs: i64,
     pub max_artifact_bytes: usize,
 }
+
+impl Limits {
+    /// Largest request body: an `enroll` carries the artifact in base64 next
+    /// to a sealed envelope of a few KiB.
+    pub fn max_request_bytes(&self) -> usize {
+        self.max_artifact_bytes.div_ceil(3) * 4 + 16 * 1024
+    }
+}
+
+/// What an operator declares about its service in the manifest.
+pub struct Service {
+    /// The URL holders and candidates `POST` requests to.
+    pub endpoint: String,
+    pub trust_domain: String,
+    pub jurisdiction: String,
+    /// Where a holder raises a complaint.
+    pub contact: String,
+}
+
+/// A manifest signed at startup stays valid this long; a restart re-signs.
+const MANIFEST_LIFETIME_SECS: i64 = 90 * 86_400;
+
+const RETENTION: &str = "The sealed share and artifact are kept until the holder revokes or \
+    closes the enrollment, which deletes them at once; a tombstone keeps the non-secret \
+    bindings. Expired enrollments are not swept yet.";
 
 /// One trustee: its component ID, keys and limits.
 pub struct Trustee {
@@ -123,6 +148,78 @@ impl Trustee {
     /// `trusteeKeyId`, as published in the manifest.
     pub fn key_id(&self) -> String {
         wire::key_digest(&self.hpke_public_key())
+    }
+
+    /// `onym:key:<hex>` of the Ed25519 key that signs manifests, receipts
+    /// and contributions.
+    pub fn operator(&self) -> String {
+        format!("onym:key:{}", hex::encode(self.signing_key.verifying_key()))
+    }
+
+    /// The signed service manifest: abstract §5.3, plus what this binding
+    /// needs published (enrollment key, limits, operations) and one free
+    /// offer (§12). Each unsupported operation is declared with its code.
+    pub fn manifest(&self, service: &Service, now: i64) -> Result<Vec<u8>, Code> {
+        let limits = &self.limits;
+        let valid_until = wire::format_timestamp(now + MANIFEST_LIFETIME_SECS)
+            .ok_or(Code::TemporarilyUnavailable)?;
+        let refused: serde_json::Map<String, Value> = store::REFUSED
+            .iter()
+            .map(|(operation, code)| (operation.to_string(), code.as_str().into()))
+            .collect();
+        let manifest = json!({
+            "version": 1,
+            "componentId": self.component_id,
+            "seat": wire::SEAT,
+            "operator": self.operator(),
+            "recoveryProfileId": wire::RECOVERY_PROFILE_ID,
+            "implementationProfileIds": [wire::IMPLEMENTATION_PROFILE_ID],
+            "bindingVersion": wire::BINDING_VERSION,
+            "endpoints": [service.endpoint],
+            "trustDomain": service.trust_domain,
+            "jurisdiction": service.jurisdiction,
+            "retention": RETENTION,
+            "recoveryFactors": [wire::FACTOR_ED25519_SESSION.trim_end_matches(':')],
+            "notificationChannels": [wire::NOTICE_HOLDER_POLL],
+            "enrollmentKey": {
+                "suite": wire::ENCRYPTION_SUITE,
+                "publicKey": hex::encode(self.hpke_public_key()),
+                "trusteeKeyId": self.key_id(),
+            },
+            "storageClass": wire::STORAGE_CLASS,
+            "limits": {
+                "clockSkewSeconds": limits.skew_secs,
+                "minimumCooldownSeconds": limits.min_cooldown_secs,
+                "maximumCooldownSeconds": limits.max_cooldown_secs,
+                "maximumSessionLifetimeSeconds": limits.max_session_lifetime_secs,
+                "maximumAttempts": limits.max_attempts,
+                "maximumEnrollmentTermSeconds": limits.max_enrollment_term_secs,
+                "maximumArtifactBytes": limits.max_artifact_bytes,
+                "maximumRequestBytes": limits.max_request_bytes(),
+            },
+            "operations": store::OPERATIONS,
+            "unsupportedOperations": refused,
+            "offers": [{
+                "offerId": "free-v1",
+                "model": "free",
+                "service": "Custody of one SLIP-0039 share per enrollment slot, released \
+                    under the enrolled policy",
+                "recoveryFees": "none",
+                "lapse": "none",
+                "export": "unavailable",
+                "retention": RETENTION,
+                "jurisdiction": service.jurisdiction,
+                "complaints": service.contact,
+                "splits": [],
+                "limitations": [
+                    "Unreviewed reference implementation: synthetic test secrets only.",
+                    "Notices reach the holder only while an enrolled device polls.",
+                    "Freshness rests on this operator's local state and clock.",
+                ],
+            }],
+            "validUntil": valid_until,
+        });
+        Ok(wire::sign_object(&manifest, &self.signing_key))
     }
 
     /// Open one sealed share envelope and decide whether to take custody.
