@@ -108,9 +108,28 @@ fn serve() -> Result<(), String> {
         let listener = tokio::net::TcpListener::bind(config.bind)
             .await
             .map_err(|error| format!("{}: {error}", config.bind))?;
+        let stop = stop_signal().map_err(|error| format!("signals: {error}"))?;
         axum::serve(listener, router)
+            .with_graceful_shutdown(stop)
             .await
             .map_err(|error| error.to_string())
+    })?;
+    eprintln!("stopped");
+    Ok(())
+}
+
+/// Resolves on SIGTERM (`docker stop`) or SIGINT. The service is PID 1 in
+/// its container, where an unhandled SIGTERM is ignored, so it must listen.
+/// Shutdown stops accepting, lets requests in flight finish, then returns.
+fn stop_signal() -> std::io::Result<impl Future<Output = ()>> {
+    use tokio::signal::unix::{SignalKind, signal};
+    let mut terminate = signal(SignalKind::terminate())?;
+    let mut interrupt = signal(SignalKind::interrupt())?;
+    Ok(async move {
+        tokio::select! {
+            _ = terminate.recv() => {}
+            _ = interrupt.recv() => {}
+        }
     })
 }
 

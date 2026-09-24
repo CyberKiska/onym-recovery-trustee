@@ -12,7 +12,8 @@
 - expired pinned manifests still work; a trustee whose keys changed does not;
 - Python opens Rust's HPKE output and verifies its signatures, and the
   other way round;
-- no planted secret reaches an error body or a log.
+- no planted secret reaches an error body or a log;
+- SIGTERM stops every trustee cleanly.
 
     cargo build && python3 tools/e2e.py
 """
@@ -111,9 +112,10 @@ class Server:
         raise RuntimeError(f"{self.origin} did not start")
 
     def stop(self):
+        """SIGTERM, as `docker stop` sends it: the service drains and exits 0."""
         if self.process:
             self.process.terminate()
-            self.process.wait()
+            assert self.process.wait(timeout=10) == 0, f"{self.origin} did not stop cleanly"
             self.process = None
 
 
@@ -321,6 +323,7 @@ def main():
         finally:
             for server in servers:
                 server.stop()
+        ok("SIGTERM stops every trustee cleanly")
         logs = b"".join(server.log.read_bytes() for server in servers)
         leaked = [secret for secret in planted if secret.encode() in logs]
         assert not leaked, f"secrets in the logs: {leaked}"

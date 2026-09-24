@@ -27,9 +27,10 @@ getrandom = "0.4"
 # SQLite compiled in (no system library), no statement cache; u64 values
 # (sequences, at most 2^53 - 1) convert checked.
 rusqlite = { version = "0.40", default-features = false, features = ["bundled", "fallible_uint"] }
-# HTTP/1 only, behind a TLS proxy; one current-thread runtime.
+# HTTP/1 only, behind a TLS proxy; one current-thread runtime that stops
+# gracefully on SIGTERM (`signal`, `macros`).
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
-tokio = { version = "1.53", default-features = false, features = ["rt", "net"] }
+tokio = { version = "1.53", default-features = false, features = ["rt", "net", "signal", "macros"] }
 
 # A panic ends the process: no unwinding past half-done work, no poisoned
 # state left behind. HPKE sealing panics if the OS RNG fails (see crypto.rs).
