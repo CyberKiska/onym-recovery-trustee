@@ -31,7 +31,10 @@ Done:
   attempts and a cooldown, holder-poll notices, veto and cancellation,
   revocation and closure as tombstones, replay nonces and idempotent
   outcomes.
-- **HTTP service:** a signed manifest and one request endpoint.
+- **HTTP service:** a signed manifest and one request endpoint; it drains
+  on SIGTERM and refuses a database that belongs to another key.
+- **Deployment:** a container image and three trustees behind Caddy, with
+  a runbook and an acceptance check ([`deploy/`](deploy/README.md)).
 - **Python client:** enrollment, holder poll, veto and closure, and a
   recovery that completes with any t reachable trustees and resumes after
   a restart; checked end to end against three local trustees.
@@ -47,7 +50,7 @@ Refusals are declared in the manifest. Declaring an operation unsupported
 does not meet the contract's obligations for it: this is a partial
 implementation of a proposed binding, not complete conformance.
 
-There is no public deployment yet. The wire binding is a draft that has not
+No public instance is listed here yet. The wire binding is a draft that has not
 been agreed with the Onym maintainers. Its encodings, digests and objects
 live in `src/wire.rs`; the manifest in `src/lib.rs`, requests and receipts
 in `src/store.rs`, and the HTTP mapping in `src/main.rs`.
@@ -63,6 +66,7 @@ in `src/store.rs`, and the HTTP mapping in `src/main.rs`.
 | `src/main.rs` | `serve`, `keygen`, `invite`; the HTTP binding |
 | `tools/client.py` | Holder and candidate client (pyca/cryptography, Trezor's `shamir-mnemonic`) |
 | `tools/e2e.py` | The end-to-end check against three local trustees |
+| `Dockerfile`, `deploy/` | The image, the compose stack behind Caddy, its runbook and acceptance check |
 
 ## Running a trustee
 
@@ -81,7 +85,9 @@ target/release/onym-recovery-trustee serve
 `onym-recovery-trustee` with no arguments lists every variable. The
 service speaks plain HTTP/1 and expects a TLS proxy in front of it. The
 database is created owner-only, and `serve` refuses a key file or database
-that group or others can read.
+that group or others can read, or a database first served under another
+component ID or key. [`deploy/`](deploy/README.md) runs it in containers
+behind Caddy.
 
 | Route | |
 |---|---|
@@ -153,7 +159,8 @@ trustee serving new keys, and a scan of error bodies and logs for planted
 secrets.
 
 CI (`.github/workflows/ci.yml`) runs all of this on Linux, checks the
-minimum Rust version, and runs `cargo deny` against `deny.toml`.
+minimum Rust version, runs `cargo deny` against `deny.toml`, and brings up
+the container stack behind Caddy to run `deploy/check.sh` against it.
 
 ```sh
 cargo build

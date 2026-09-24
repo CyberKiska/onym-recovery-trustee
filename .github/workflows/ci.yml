@@ -46,3 +46,32 @@ jobs:
           persist-credentials: false
       - run: cargo install --locked cargo-deny --version 0.19.5
       - run: cargo deny --locked check
+
+  deploy:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: deploy
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Image, keys and the local stack behind Caddy
+        run: |
+          cp local.env .env
+          docker compose build
+          install -d -m 700 secrets
+          for t in a b c; do
+            docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/secrets:/keys" \
+              onym-recovery-trustee:local keygen /keys/trustee-$t.key
+          done
+          sudo chown 10001:10001 secrets/*.key
+          docker compose up -d
+          sleep 3
+      - name: Acceptance check
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --require-hashes -r ../tools/requirements.txt
+          PYTHON=.venv/bin/python ./check.sh
+      - if: failure()
+        run: docker compose logs
