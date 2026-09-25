@@ -102,6 +102,7 @@ fn serve() -> Result<(), String> {
         // Enough for a reference trustee; lock per enrollment if it is not.
         store: Mutex::new(store),
         service: config.service,
+        clock: Clock::start().map_err(|code| code.to_string())?,
     });
     let router = Router::new()
         .route("/health", get(health))
@@ -197,6 +198,7 @@ struct App {
     trustee: Trustee,
     store: Mutex<Store>,
     service: Service,
+    clock: Clock,
 }
 
 impl App {
@@ -207,7 +209,7 @@ impl App {
             .lock()
             .map_err(|_| Code::TemporarilyUnavailable)?;
         // Read under the lock, so time never runs backwards between requests.
-        store.handle(&self.trustee, body, now()?)
+        store.handle(&self.trustee, body, self.clock.now()?)
     }
 }
 
@@ -239,7 +241,11 @@ async fn endpoint(State(app): State<Arc<App>>, body: Result<Bytes, BytesRejectio
 
 /// Signed on each read; the bytes change only when `validUntil` moves on.
 async fn manifest_json(State(app): State<Arc<App>>) -> Response {
-    match now().and_then(|now| app.trustee.manifest(&app.service, now)) {
+    match app
+        .clock
+        .now()
+        .and_then(|now| app.trustee.manifest(&app.service, now))
+    {
         Ok(manifest) => ([(header::CONTENT_TYPE, "application/json")], manifest).into_response(),
         Err(code) => status(code).into_response(),
     }
@@ -430,9 +436,61 @@ fn now() -> Result<i64, Code> {
     i64::try_from(elapsed.as_secs()).map_err(|_| Code::TemporarilyUnavailable)
 }
 
+/// Seconds the wall clock may run ahead of the monotonic one: whole-second
+/// rounding of both, and small corrections.
+const CLOCK_SLACK_SECS: i64 = 5;
+
+/// Wall time that never runs faster than the monotonic clock since startup,
+/// so a wall clock stepped forward while the service runs cannot shorten a
+/// cooldown. A step back is the store's high-water mark's to handle.
+struct Clock {
+    started_at: i64,
+    started: Instant,
+}
+
+impl Clock {
+    fn start() -> Result<Clock, Code> {
+        Ok(Clock {
+            started_at: now()?,
+            started: Instant::now(),
+        })
+    }
+
+    fn now(&self) -> Result<i64, Code> {
+        Ok(now()?.min(self.limit()))
+    }
+
+    fn limit(&self) -> i64 {
+        let elapsed = i64::try_from(self.started.elapsed().as_secs()).unwrap_or(i64::MAX);
+        self.started_at
+            .saturating_add(elapsed)
+            .saturating_add(CLOCK_SLACK_SECS)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::public_host;
+    use super::{CLOCK_SLACK_SECS, Clock, now, public_host};
+    use std::time::Instant;
+
+    #[test]
+    fn time_never_runs_faster_than_the_monotonic_clock() {
+        let wall = now().unwrap();
+        // The wall clock stepped an hour forward since startup: capped.
+        let stepped_forward = Clock {
+            started_at: wall - 3600,
+            started: Instant::now(),
+        };
+        assert!(stepped_forward.now().unwrap() <= wall - 3600 + CLOCK_SLACK_SECS);
+        // Stepped back: the wall clock is followed, and the store refuses it.
+        let stepped_back = Clock {
+            started_at: wall + 3600,
+            started: Instant::now(),
+        };
+        assert!(stepped_back.now().unwrap() <= wall + 1);
+        let steady = Clock::start().unwrap();
+        assert!((steady.now().unwrap() - wall).abs() <= 1);
+    }
 
     #[test]
     fn public_urls_are_https_or_loopback_origins() {

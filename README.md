@@ -197,7 +197,9 @@ python3 tools/client.py share-fixtures               # SLIP-0039 fixtures
 ## Limits
 
 - **Local state is trusted.** A trustee restored from an old snapshot, or
-  a clock set forward, goes undetected. A clock set back stops enrollment,
+  started with a clock set forward, goes undetected. While it runs, its
+  time never advances faster than the monotonic clock, so a later step
+  forward cannot shorten a cooldown. A clock set back stops enrollment,
   new sessions and release until it catches up; the holder's poll, veto,
   cancellation, revocation and closure still run, at the latest time
   already recorded.
