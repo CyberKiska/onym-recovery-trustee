@@ -11,8 +11,8 @@
 
 #![forbid(unsafe_code)]
 
-use std::fs::OpenOptions;
-use std::io::Write as _;
+use std::fs::{File, OpenOptions};
+use std::io::{Read as _, Write as _};
 use std::net::SocketAddr;
 use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
@@ -48,6 +48,9 @@ Environment:
   TRUSTEE_MIN_COOLDOWN   shortest cooldown a policy may set, default PT1M";
 
 const DAY: i64 = 86_400;
+
+/// Read limit for the key file, whose valid form is two short lines.
+const KEY_FILE_BYTES: usize = 512;
 
 /// Requests admitted to the store at once, and the extra places kept for
 /// [`store::PROTECTIVE`] operations.
@@ -428,9 +431,12 @@ impl Config {
     }
 
     fn trustee(&self) -> Result<Trustee, String> {
-        check_private(&self.key_file)?;
-        let text = std::fs::read_to_string(&self.key_file)
-            .map(Zeroizing::new)
+        let file = open_private(&self.key_file, OpenOptions::new().read(true))?;
+        // A valid key file is under 200 bytes: reserve enough that reading
+        // never reallocates and leaves an unzeroed copy, and read no more.
+        let mut text = Zeroizing::new(String::with_capacity(KEY_FILE_BYTES));
+        file.take(KEY_FILE_BYTES as u64)
+            .read_to_string(&mut text)
             .map_err(|error| format!("{}: {error}", self.key_file.display()))?;
         let (signing_key, hpke_key) = parse_keys(&text)?;
         Ok(Trustee {
@@ -464,29 +470,38 @@ fn store_path() -> PathBuf {
 /// Open the database, creating it owner-only first: SQLite gives its WAL
 /// and shared-memory files the database file's mode.
 fn open_store(path: &Path) -> Result<Store, String> {
-    let fail = |error: &dyn std::fmt::Display| format!("{}: {error}", path.display());
-    OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .mode(0o600)
-        .open(path)
-        .map_err(|error| fail(&error))?;
-    check_private(path)?;
-    Store::open(path).map_err(|error| fail(&error))
+    open_private(
+        path,
+        OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600),
+    )?;
+    Store::open(path).map_err(|error| format!("{}: {error}", path.display()))
 }
 
-/// Refuse a file holding keys or custody that group or others can reach.
-fn check_private(path: &Path) -> Result<(), String> {
-    let metadata =
-        std::fs::metadata(path).map_err(|error| format!("{}: {error}", path.display()))?;
+/// Open a file holding keys or custody, refusing anything but a regular
+/// file only its owner can reach. The checks apply to the handle opened, so
+/// the file cannot be swapped between check and use. Symbolic links are
+/// followed, as mounted secrets often are.
+fn open_private(path: &Path, options: &OpenOptions) -> Result<File, String> {
+    let fail = |error: &dyn std::fmt::Display| format!("{}: {error}", path.display());
+    // Checked before opening too: opening a FIFO would block.
+    if std::fs::metadata(path).is_ok_and(|metadata| !metadata.is_file()) {
+        return Err(fail(&"not a regular file"));
+    }
+    let file = options.open(path).map_err(|error| fail(&error))?;
+    let metadata = file.metadata().map_err(|error| fail(&error))?;
+    if !metadata.is_file() {
+        return Err(fail(&"not a regular file"));
+    }
     if metadata.permissions().mode() & 0o077 != 0 {
-        return Err(format!(
-            "{}: group or others have access; make it owner-only (chmod 600)",
-            path.display()
+        return Err(fail(
+            &"group or others have access; make it owner-only (chmod 600)",
         ));
     }
-    Ok(())
+    Ok(file)
 }
 
 /// The host of an https origin, or of a loopback http one.
@@ -568,8 +583,37 @@ impl Clock {
 
 #[cfg(test)]
 mod tests {
-    use super::{Admission, CLOCK_SLACK_SECS, Clock, now, public_host};
+    use super::{Admission, CLOCK_SLACK_SECS, Clock, now, open_private, public_host};
+    use std::fs::{OpenOptions, Permissions};
+    use std::os::unix::fs::PermissionsExt as _;
     use std::time::Instant;
+
+    #[test]
+    fn only_owner_only_regular_files_hold_keys() {
+        let dir = std::env::temp_dir().join(format!("trustee-keys-{}", std::process::id()));
+        std::fs::create_dir(&dir).unwrap();
+        let file = |name: &str, mode: u32| {
+            let path = dir.join(name);
+            std::fs::write(&path, "key").unwrap();
+            std::fs::set_permissions(&path, Permissions::from_mode(mode)).unwrap();
+            path
+        };
+        let read = OpenOptions::new().read(true).clone();
+        let private = file("private", 0o600);
+        std::os::unix::fs::symlink(&private, dir.join("link")).unwrap();
+        assert!(open_private(&private, &read).is_ok());
+        assert!(open_private(&dir.join("link"), &read).is_ok());
+        assert!(open_private(&file("shared", 0o640), &read).is_err());
+        assert!(open_private(&dir, &read).is_err());
+        let fifo = std::process::Command::new("mkfifo")
+            .arg(dir.join("fifo"))
+            .status();
+        if fifo.is_ok_and(|status| status.success()) {
+            // Refused before opening, so the open cannot block.
+            assert!(open_private(&dir.join("fifo"), &read).is_err());
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn admission_is_bounded_and_keeps_a_reserve_for_protection() {
