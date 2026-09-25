@@ -135,7 +135,9 @@ cooldown and spends no further attempt. It needs any t reachable trustees
 and writes the recovered artifact to an owner-only file. A trustee that is
 unreachable, or whose proxy answers 502, 503 or 504, is retried until the
 session expires; one that refuses or sends anything that does not verify
-is dropped, alone. If saving fails, recovery stops, and a rerun resumes
+is dropped, alone. A trustee's codes, states, times and name are shown
+only when spelled as the binding spells them, and the client prints
+printable ASCII only. If saving fails, recovery stops, and a rerun resumes
 from the last saved session. Files are written whole or not at all; a
 crash can leave a hidden `.<name>.*.tmp` beside one, holding the same
 private data, which is safe to delete.

@@ -74,6 +74,23 @@ CONTRIBUTION = (
 # Every field of a signed contribution (binding §6.5), and no other.
 CONTRIBUTION_FIELDS = {*CONTRIBUTION, "contributionVersion", "decision", "sealedContribution", "decidedAt", "signature"}
 
+# The codes a trustee may answer with: recovery contract §15 and the
+# binding's two additions (§6.8). Any other code is treated as none.
+CODES = frozenset({
+    "unsupported_profile", "invalid_manifest", "invalid_policy", "invalid_enrollment", "enrollment_pending",
+    "enrollment_expired", "enrollment_revoked", "stale_enrollment_sequence", "artifact_mismatch",
+    "invalid_destination", "bootstrap_unavailable", "invalid_candidate_factor", "recovery_cooling_down",
+    "recovery_rate_limited", "recovery_vetoed", "recovery_refused", "recovery_expired",
+    "insufficient_contributions", "invalid_contribution", "payment_required", "service_lapsed",
+    "export_unavailable", "temporarily_unavailable", "invalid_request", "request_conflict",
+})
+# The state names a receipt may carry (abstract §7, binding §6.7).
+STATES = frozenset({
+    "none", "active", "expired", "superseded", "revoked", "closed",
+    "cooling_down", "collecting", "finalized", "cancelled", "refused",
+})
+COMPONENT_ID = re.compile(r"onym:component:[a-z0-9-]{1,64}")
+
 
 # ---------------------------------------------------------------------------
 # Encodings (binding §§2-4)
@@ -131,7 +148,7 @@ def hex32(text):
 def uint(value):
     """A JSON integer in 0..2^53-1; a boolean is not one."""
     if type(value) is not int or not 0 <= value <= MAX_SAFE_INTEGER:
-        raise ValueError(f"not an unsigned integer: {value!r}")
+        raise ValueError("not an unsigned integer")
     return value
 
 
@@ -140,10 +157,14 @@ def timestamp(seconds):
 
 
 def seconds(text):
-    """Exactly `YYYY-MM-DDTHH:MM:SSZ`; any other spelling is refused, as in Rust."""
-    value = int(datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp())
-    if timestamp(value) != text:
-        raise ValueError(f"timestamp: {text}")
+    """Exactly `YYYY-MM-DDTHH:MM:SSZ`; any other spelling is refused, as in
+    Rust. The error never repeats the text, which may be a trustee's."""
+    try:
+        value = int(datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp())
+    except (TypeError, ValueError):
+        value = None
+    if value is None or timestamp(value) != text:
+        raise ValueError("malformed timestamp")
     return value
 
 
@@ -215,20 +236,55 @@ def expect(value, fields, what):
         raise ValueError(f"{what}: unexpected {', '.join(mismatched)}")
 
 
+def one_of(value, allowed, what):
+    """`value` if it is one of the `allowed` strings; the error never
+    repeats it."""
+    if not isinstance(value, str) or value not in allowed:
+        raise ValueError(f"malformed: {what}")
+    return value
+
+
+def check_receipt(receipt):
+    """The states, reasons, times and notices a receipt names, spelled as
+    the binding spells them: a trustee's text is shown only once checked."""
+    for key in ("oldState", "newState"):
+        one_of(receipt.get(key), STATES, key)
+    if "reason" in receipt:
+        one_of(receipt["reason"], CODES, "reason")
+    seconds(receipt.get("recordedAt"))
+    seconds(receipt.get("expiresAt"))
+    if "cooldownEndsAt" in receipt:
+        seconds(receipt["cooldownEndsAt"])
+    notices = receipt.get("sessions", [])
+    if not isinstance(notices, list) or not all(isinstance(notice, dict) for notice in notices):
+        raise ValueError("malformed: sessions")
+    for notice in notices:
+        hex32(required(notice, "sessionId"))
+        one_of(notice.get("state"), STATES, "session state")
+        if "reason" in notice:
+            one_of(notice["reason"], CODES, "session reason")
+        if not isinstance(notice.get("released"), bool):
+            raise ValueError("malformed: released")
+        seconds(notice.get("cooldownEndsAt"))
+        seconds(notice.get("expiresAt"))
+
+
 # ---------------------------------------------------------------------------
 # Transport
 
 
 class Refused(Exception):
-    """A trustee's refusal: HTTP status, stable code and the raw body."""
+    """A trustee's refusal: HTTP status, its code if it is a known one, and
+    the raw body, which is never shown."""
 
     def __init__(self, status, body):
         self.status, self.body = status, body
         try:
-            self.code = parse(body).get("error")
+            code = parse(body).get("error")
         except ValueError:
-            self.code = None
-        super().__init__(f"{status} {self.code}")
+            code = None
+        self.code = code if isinstance(code, str) and code in CODES else None
+        super().__init__(f"{status} {self.code or 'no code'}")
 
 
 # Every way one trustee can fail: its refusal, the network, or a response
@@ -247,8 +303,10 @@ def transient(error):
 
 
 def describe(error):
-    """One line naming a failure, never echoing a request."""
-    return str(error) if isinstance(error, (Refused, ValueError, OSError)) else type(error).__name__
+    """One bounded line of printable ASCII naming a failure, never echoing a
+    request: no control character from anywhere reaches a terminal or log."""
+    text = str(error) if isinstance(error, (Refused, ValueError, OSError)) else type(error).__name__
+    return re.sub(r"[^\x20-\x7e]", "?", text)[:200]
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -298,7 +356,10 @@ class Trustee:
     def __init__(self, manifest, current=True):
         self.operator = required(manifest, "operator").removeprefix("onym:key:")
         verify(manifest, "signature", self.operator)
+        # Printed as the trustee's name, so its spelling is checked first.
         self.component_id = required(manifest, "componentId")
+        if not COMPONENT_ID.fullmatch(self.component_id):
+            raise ValueError("malformed: componentId")
         self.endpoint = required(manifest, "endpoints", list)[0]
         key = required(manifest, "enrollmentKey", dict)
         required(manifest, "trustDomain")
@@ -341,6 +402,7 @@ class Trustee:
         answer = {"receiptVersion": 1, "componentId": self.component_id, "operation": operation,
                   "requestId": request_id}
         expect(receipt, answer, "receipt")
+        check_receipt(receipt)
         return receipt
 
     def signed(self, operation, key, target, by=None):

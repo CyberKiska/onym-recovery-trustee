@@ -155,6 +155,14 @@ def check(servers, work):
     assert c.transient(c.Refused(503, c.canonical({"error": "temporarily_unavailable"})))
     ok("a proxy's 502, 504 or bare 429 is retried within the session; a trustee's refusal is final")
 
+    hostile = (b'{"error":"invalid_request\\n\\u001b[2Jall trustees released"}', b'{"error":{"code":1}}',
+               b'["invalid_request"]', b"\xff")
+    for body in hostile:
+        refusal = c.Refused(400, body)
+        assert refusal.code is None and c.describe(refusal) == "400 no code", c.describe(refusal)
+    assert c.describe(ValueError("a\x1b[2J\nb")) == "a?[2J?b"
+    ok("a refusal's unknown code or control characters never reach the output")
+
     trustees = [c.Trustee.fetch(server.origin) for server in servers]
     first, second, third = trustees
     ok("three signed manifests verify")
@@ -162,6 +170,30 @@ def check(servers, work):
         answer = urllib.request.urlopen(f"{server.origin}/ready", timeout=5).read()
         assert c.parse(answer) == {"status": "ready"}, answer
     ok("every trustee reports itself ready")
+
+    # A trustee signing whatever it likes: only the binding's spellings pass.
+    liar, key = c.Trustee(first.manifest), servers[0].operator_key()
+    base = {"receiptVersion": 1, "componentId": liar.component_id, "operation": "read-enrollment",
+            "requestId": "r", "oldState": "active", "newState": "active",
+            "recordedAt": c.timestamp(time.time()), "expiresAt": c.timestamp(time.time() + 60)}
+    notice = {"sessionId": "ab" * 32, "state": "cooling_down", "released": False,
+              "cooldownEndsAt": base["recordedAt"], "expiresAt": base["expiresAt"]}
+    liar.post = lambda request: c.canonical(c.sign(dict(base, sessions=[notice]), "signature", key))
+    assert liar.call({}, "read-enrollment", "r")["sessions"] == [notice]
+    lies = ({"newState": "\x1b[2Jreleased"}, {"reason": "ok\nall released"}, {"cooldownEndsAt": "\x1b]0;x"},
+            {"sessions": [dict(notice, state="\x1b[31m")]}, {"sessions": [dict(notice, sessionId="\n")]})
+    for lie in lies:
+        liar.post = lambda request, lie=lie: c.canonical(c.sign(dict(base, **lie), "signature", key))
+        try:
+            liar.call({}, "read-enrollment", "r")
+        except ValueError as error:
+            assert str(error).isprintable(), error
+        else:
+            raise AssertionError(f"accepted {lie!r}")
+    unsigned = {name: value for name, value in first.manifest.items() if name != "signature"}
+    renamed = c.sign(dict(unsigned, componentId="onym:component:\x1b[2J"), "signature", key)
+    assert raises(ValueError, lambda: c.Trustee(renamed))
+    ok("a trustee's receipts with unknown states, reasons, times or notices are refused, as is an unprintable name")
 
     # --- Enrollment -------------------------------------------------------
     codes = [server.invite() for server in servers]
