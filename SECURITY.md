@@ -21,9 +21,10 @@ others can complete.
 These are documented, not vulnerabilities in themselves (see the README's
 [Limits](README.md#limits) and [`deploy/README.md`](deploy/README.md)):
 
-- local state and the clock are trusted: a trustee restored from an old
-  snapshot is not detected;
+- local state is trusted: a trustee restored from an old snapshot, or
+  started with its clock set forward, is not detected;
 - notices reach the holder only while an enrolled device polls;
 - deletion is logical: snapshots and backups keep what they held;
-- the deployment bounds each request but not how many arrive;
+- the service bounds how many requests reach its store at once, not how
+  many each client sends;
 - one factor profile, an independently held Ed25519 key.
