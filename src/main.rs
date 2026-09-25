@@ -1,11 +1,13 @@
 //! The trustee service: `serve`, `keygen <path>`, `invite [lifetime]`.
 //!
-//! HTTP binding, proposed: public `GET /manifest.json` and `GET /health`, and
-//! one `POST /v1/trustee` taking a canonical request object. Every request
-//! runs as one synchronous [`Store::handle`] call under one global lock, so
-//! state changes serialize and nothing awaits while the lock is held. The
-//! log records route, status, error code and duration; never a body, an
-//! identifier or a key.
+//! HTTP binding, proposed: public `GET /manifest.json`, `GET /health`
+//! (liveness) and `GET /ready`, and one `POST /v1/trustee` taking a
+//! canonical request object. A request is parsed on the event loop, takes
+//! one of a bounded number of places, and runs as one synchronous
+//! [`Store::handle_request`] call on a blocking thread under one global
+//! lock, so state changes serialize and nothing awaits while the lock is
+//! held. The log records route, status, error code and duration; never a
+//! body, an identifier or a key.
 
 #![forbid(unsafe_code)]
 
@@ -26,9 +28,10 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use ed25519_dalek::SigningKey;
-use onym_recovery_trustee::store::Store;
+use onym_recovery_trustee::store::{self, Store};
 use onym_recovery_trustee::wire::{self, Code};
 use onym_recovery_trustee::{Limits, Service, Trustee, crypto};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use zeroize::Zeroizing;
 
 const USAGE: &str = "usage: onym-recovery-trustee serve | keygen <path> | invite [lifetime]
@@ -45,6 +48,11 @@ Environment:
   TRUSTEE_MIN_COOLDOWN   shortest cooldown a policy may set, default PT1M";
 
 const DAY: i64 = 86_400;
+
+/// Requests admitted to the store at once, and the extra places kept for
+/// [`store::PROTECTIVE`] operations.
+const ADMITTED: usize = 32;
+const RESERVED: usize = 8;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -103,9 +111,11 @@ fn serve() -> Result<(), String> {
         store: Mutex::new(store),
         service: config.service,
         clock: Clock::start().map_err(|code| code.to_string())?,
+        admission: Admission::new(ADMITTED, RESERVED),
     });
     let router = Router::new()
         .route("/health", get(health))
+        .route("/ready", get(ready))
         .route("/manifest.json", get(manifest_json))
         .route("/v1/trustee", post(endpoint))
         .layer(DefaultBodyLimit::max(body_limit))
@@ -199,25 +209,91 @@ struct App {
     store: Mutex<Store>,
     service: Service,
     clock: Clock,
+    admission: Admission,
 }
 
 impl App {
-    /// One request under the global lock. Synchronous: nothing awaits here.
-    fn handle(&self, body: &[u8]) -> Result<Vec<u8>, Code> {
-        let mut store = self
-            .store
-            .lock()
-            .map_err(|_| Code::TemporarilyUnavailable)?;
-        // Read under the lock, so time never runs backwards between requests.
-        store.handle(&self.trustee, body, self.clock.now()?)
+    /// Parse, take a place, then serve the request on a blocking thread
+    /// under the global lock, off the event loop. Nothing awaits under it.
+    async fn handle(self: Arc<Self>, body: Bytes) -> Result<Vec<u8>, Code> {
+        let request = wire::parse(&body).ok_or(Code::InvalidRequest)?;
+        let operation = request["operation"].as_str().unwrap_or_default();
+        let place = self
+            .admission
+            .admit(operation)
+            .ok_or(Code::TemporarilyUnavailable)?;
+        tokio::task::spawn_blocking(move || {
+            let _place = place;
+            let mut store = self
+                .store
+                .lock()
+                .map_err(|_| Code::TemporarilyUnavailable)?;
+            // Read under the lock, so time never runs backwards between requests.
+            store.handle_request(&self.trustee, request, self.clock.now()?)
+        })
+        .await
+        .map_err(|_| Code::TemporarilyUnavailable)?
+    }
+
+    /// Ready for custody decisions, or why not: saturated, a clock release
+    /// cannot use, or a store that does not answer.
+    async fn readiness(self: Arc<Self>) -> Result<(), &'static str> {
+        if self.clock.ahead().map_err(|_| "clock_unreadable")? {
+            return Err("clock_ahead");
+        }
+        let place = self.admission.admit("").ok_or("busy")?;
+        tokio::task::spawn_blocking(move || {
+            let _place = place;
+            let store = self.store.lock().map_err(|_| "unavailable")?;
+            let floor = store.clock_floor().map_err(|_| "unavailable")?;
+            let now = self.clock.now().map_err(|_| "clock_unreadable")?;
+            if now < floor {
+                return Err("clock_behind");
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|_| "unavailable")?
+    }
+}
+
+/// Bounded places for requests on their way to the store. A request that
+/// finds none is refused at once rather than queued without bound, and a
+/// flood of other operations cannot take the reserve kept for a veto.
+struct Admission {
+    places: Arc<Semaphore>,
+    reserve: Arc<Semaphore>,
+}
+
+impl Admission {
+    fn new(places: usize, reserve: usize) -> Admission {
+        Admission {
+            places: Arc::new(Semaphore::new(places)),
+            reserve: Arc::new(Semaphore::new(reserve)),
+        }
+    }
+
+    fn admit(&self, operation: &str) -> Option<OwnedSemaphorePermit> {
+        let reserved = || {
+            store::PROTECTIVE
+                .contains(&operation)
+                .then(|| self.reserve.clone().try_acquire_owned().ok())
+                .flatten()
+        };
+        self.places
+            .clone()
+            .try_acquire_owned()
+            .ok()
+            .or_else(reserved)
     }
 }
 
 async fn endpoint(State(app): State<Arc<App>>, body: Result<Bytes, BytesRejection>) -> Response {
     let started = Instant::now();
-    let result = body
-        .map_err(|_| Code::InvalidRequest)
-        .and_then(|body| app.handle(&body));
+    let result = match body {
+        Ok(body) => app.handle(body).await,
+        Err(_) => Err(Code::InvalidRequest),
+    };
     let (status, code, body) = match result {
         Ok(body) => (StatusCode::OK, "-", body),
         Err(code) => (
@@ -251,9 +327,25 @@ async fn manifest_json(State(app): State<Arc<App>>) -> Response {
     }
 }
 
+/// Liveness only: the process answers.
 async fn health() -> Response {
     let headers = [(header::CONTENT_TYPE, "application/json")];
     (headers, r#"{"status":"ok"}"#).into_response()
+}
+
+/// Readiness, with a reason and no identifier: `ready`, or 503 with `busy`,
+/// `clock_behind`, `clock_ahead`, `clock_unreadable` or `unavailable`.
+async fn ready(State(app): State<Arc<App>>) -> Response {
+    let (status, text) = match app.readiness().await {
+        Ok(()) => (StatusCode::OK, "ready"),
+        Err(reason) => (StatusCode::SERVICE_UNAVAILABLE, reason),
+    };
+    let headers = [
+        (header::CONTENT_TYPE, "application/json"),
+        (header::CACHE_CONTROL, "no-store"),
+    ];
+    let body = wire::canonical(&serde_json::json!({ "status": text }));
+    (status, headers, body).into_response()
 }
 
 /// Proposed status classes: 400 invalid object, 409 state conflict, 429
@@ -460,6 +552,12 @@ impl Clock {
         Ok(now()?.min(self.limit()))
     }
 
+    /// The wall clock is ahead of the monotonic one: time follows the
+    /// monotonic clock until an operator checks the clock and restarts.
+    fn ahead(&self) -> Result<bool, Code> {
+        Ok(now()? > self.limit())
+    }
+
     fn limit(&self) -> i64 {
         let elapsed = i64::try_from(self.started.elapsed().as_secs()).unwrap_or(i64::MAX);
         self.started_at
@@ -470,8 +568,19 @@ impl Clock {
 
 #[cfg(test)]
 mod tests {
-    use super::{CLOCK_SLACK_SECS, Clock, now, public_host};
+    use super::{Admission, CLOCK_SLACK_SECS, Clock, now, public_host};
     use std::time::Instant;
+
+    #[test]
+    fn admission_is_bounded_and_keeps_a_reserve_for_protection() {
+        let admission = Admission::new(1, 1);
+        let held = admission.admit("begin-recovery").unwrap();
+        assert!(admission.admit("enroll").is_none());
+        let reserved = admission.admit("cancel-recovery").unwrap();
+        assert!(admission.admit("close-enrollment").is_none());
+        drop((held, reserved));
+        assert!(admission.admit("enroll").is_some());
+    }
 
     #[test]
     fn time_never_runs_faster_than_the_monotonic_clock() {
@@ -482,14 +591,16 @@ mod tests {
             started: Instant::now(),
         };
         assert!(stepped_forward.now().unwrap() <= wall - 3600 + CLOCK_SLACK_SECS);
+        assert!(stepped_forward.ahead().unwrap());
         // Stepped back: the wall clock is followed, and the store refuses it.
         let stepped_back = Clock {
             started_at: wall + 3600,
             started: Instant::now(),
         };
         assert!(stepped_back.now().unwrap() <= wall + 1);
+        assert!(!stepped_back.ahead().unwrap());
         let steady = Clock::start().unwrap();
-        assert!((steady.now().unwrap() - wall).abs() <= 1);
+        assert!((steady.now().unwrap() - wall).abs() <= 1 && !steady.ahead().unwrap());
     }
 
     #[test]

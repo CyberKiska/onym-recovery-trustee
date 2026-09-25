@@ -158,6 +158,10 @@ def check(servers, work):
     trustees = [c.Trustee.fetch(server.origin) for server in servers]
     first, second, third = trustees
     ok("three signed manifests verify")
+    for server in servers:
+        answer = urllib.request.urlopen(f"{server.origin}/ready", timeout=5).read()
+        assert c.parse(answer) == {"status": "ready"}, answer
+    ok("every trustee reports itself ready")
 
     # --- Enrollment -------------------------------------------------------
     codes = [server.invite() for server in servers]

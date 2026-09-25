@@ -258,6 +258,16 @@ impl Store {
     /// Serve one request of the trustee endpoint.
     pub fn handle(&mut self, trustee: &Trustee, body: &[u8], now: i64) -> Result<Vec<u8>, Code> {
         let request = wire::parse(body).ok_or(Code::InvalidRequest)?;
+        self.handle_request(trustee, request, now)
+    }
+
+    /// Serve a request the caller already parsed with [`wire::parse`].
+    pub fn handle_request(
+        &mut self,
+        trustee: &Trustee,
+        request: Value,
+        now: i64,
+    ) -> Result<Vec<u8>, Code> {
         let operation = request["operation"].as_str().unwrap_or_default().to_owned();
         let signed =
             |request| Signed::parse(request, &trustee.component_id).ok_or(Code::InvalidRequest);
@@ -276,6 +286,13 @@ impl Store {
                 .find(|(name, _)| *name == other)
                 .map_or(Code::InvalidRequest, |&(_, code)| code)),
         }
+    }
+
+    /// The highest time any transaction has recorded.
+    pub fn clock_floor(&self) -> Result<i64, Code> {
+        Ok(self
+            .connection
+            .query_row("SELECT high_water FROM clock", [], |row| row.get(0))?)
     }
 
     /// The write transaction an operation that grants or uses authority runs

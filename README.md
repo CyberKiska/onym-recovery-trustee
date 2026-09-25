@@ -104,7 +104,8 @@ behind Caddy.
 | Route | |
 |---|---|
 | `GET /manifest.json` | The signed manifest: keys, limits, supported and refused operations, the free offer |
-| `GET /health` | `{"status":"ok"}` |
+| `GET /health` | Liveness: `{"status":"ok"}` |
+| `GET /ready` | `{"status":"ready"}`, or 503 with `busy`, `clock_behind`, `clock_ahead`, `clock_unreadable` or `unavailable` |
 | `POST /v1/trustee` | One canonical request object; the response is a signed receipt or `{"error": code}` |
 
 Status classes are 400 for an invalid request, 409 for a state conflict,
@@ -211,9 +212,12 @@ python3 tools/client.py share-fixtures               # SLIP-0039 fixtures
 - **Deletion is logical.** Revoke and close remove custody from the live
   database at once and checkpoint its WAL; freed disk blocks, snapshots and
   backups keep what they had. A released contribution cannot be recalled.
-- **No rate limiting in the service.** Bodies are bounded and attempts are
-  per enrollment; a public instance needs a connection and request limit in
-  front (see [Before going public](deploy/README.md#before-going-public)).
+- **No per-client rate limiting in the service.** Bodies are bounded,
+  attempts are per enrollment, and at most 32 requests reach the store at
+  once, with 8 more places kept for the holder's poll, veto, cancellation,
+  revocation and closure; the rest get 503 at once. A public instance
+  still needs a per-source limit in front (see
+  [Before going public](deploy/README.md#before-going-public)).
 - **Trust on first use.** The client trusts a manifest's key the first time
   it fetches it over HTTPS; later it requires the same keys.
 - **One operator, one trust domain.** Local demo trustees declare the same
