@@ -984,8 +984,9 @@ def write_private(path, value, replace=False):
 def enroll_to(out, invitations, threshold, **terms):
     """Enroll at every (trustee, invitation) and write the vault directory
     `out`, which must not exist. The holder and factor keys are written
-    before any trustee is contacted; if enrollment fails, those keys close
-    every slot. The map and its key are read back from disk at the end."""
+    before any trustee is contacted. Success means the map and its key were
+    read back from disk; if anything fails or is interrupted before that,
+    the holder keys close every slot, so no custody outlives its map."""
     out = Path(out)
     enrollment = Enrollment([trustee for trustee, _ in invitations], threshold, **terms)
     out.mkdir(mode=0o700)
@@ -993,18 +994,18 @@ def enroll_to(out, invitations, threshold, **terms):
     write_private(out / "factors.json", enrollment.factors)
     try:
         recovery_map = enrollment.run([code for _, code in invitations])
-    except FAILURES:
+        sealed, key = seal_map(recovery_map)
+        write_private(out / "map.key", key.hex())
+        write_private(out / "map.json", sealed)
+        reopened, _, _ = open_map(parse((out / "map.json").read_bytes()), hex32((out / "map.key").read_text()))
+        if reopened != recovery_map:
+            raise ValueError("the saved map does not reopen")
+    except (*FAILURES, KeyboardInterrupt):
         print("enrollment failed; closing every slot with the saved holder keys", file=sys.stderr)
         for name, result in Holder.load(enrollment.holder).close():
             outcome = "closed" if isinstance(result, dict) else f"not closed ({describe(result)})"
             print(f"  {name}: {outcome}", file=sys.stderr)
         raise
-    sealed, key = seal_map(recovery_map)
-    write_private(out / "map.key", key.hex())
-    write_private(out / "map.json", sealed)
-    reopened, _, _ = open_map(parse((out / "map.json").read_bytes()), hex32((out / "map.key").read_text()))
-    if reopened != recovery_map:
-        raise ValueError("the saved map does not reopen")
     return recovery_map
 
 

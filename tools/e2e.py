@@ -207,6 +207,23 @@ def check(servers, work):
     assert [result["newState"] for _, result in closed[:2]] == ["closed", "closed"], closed
     ok("an existing vault directory stops enrollment before any request; a failed one closes its slots")
 
+    unsaved, write_private = work / "unsaved", c.write_private
+
+    def full_disk_at_map(path, value, replace=False):
+        if Path(path).name == "map.json":
+            raise OSError(28, "No space left on device")
+        return write_private(path, value, replace)
+
+    c.write_private = full_disk_at_map
+    try:
+        invited = [(t, s.invite()) for t, s in zip(trustees, servers)]
+        assert raises(OSError, lambda: c.enroll_to(unsaved, invited, 2, **TERMS))
+    finally:
+        c.write_private = write_private
+    closed = c.Holder.load(c.parse((unsaved / "holder.json").read_bytes())).poll()
+    assert [result["newState"] for _, result in closed] == ["closed"] * 3, closed
+    ok("an enrollment whose map cannot be saved closes all three slots it opened")
+
     canary = "canary-" + secrets.token_hex(16)
     vault = work / "vault"
     recovery_map = c.enroll_to(vault, [(t, s.invite()) for t, s in zip(trustees, servers)], 2, payload=canary, **TERMS)
