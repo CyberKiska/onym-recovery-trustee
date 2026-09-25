@@ -197,8 +197,10 @@ python3 tools/client.py share-fixtures               # SLIP-0039 fixtures
 ## Limits
 
 - **Local state is trusted.** A trustee restored from an old snapshot, or
-  a clock set forward, goes undetected. A clock set back stops every
-  change until it catches up.
+  a clock set forward, goes undetected. A clock set back stops enrollment,
+  new sessions and release until it catches up; the holder's poll, veto,
+  cancellation, revocation and closure still run, at the latest time
+  already recorded.
 - **Notices reach the holder only while an enrolled device polls.** Nothing
   is pushed.
 - **One factor profile:** an independently held Ed25519 key signing the

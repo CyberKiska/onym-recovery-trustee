@@ -672,6 +672,34 @@ fn veto_and_release_serialize() {
     }
 }
 
+#[test]
+fn a_clock_set_back_stops_release_but_not_protection() {
+    let mut h = Harness::new();
+    h.enroll();
+    let session = session_id(0x5f);
+    h.call(&begin(&session), BEGUN_AT).unwrap();
+
+    // The host clock steps back a minute; the holder's clock is right.
+    let behind = later(BEGUN_AT, -60);
+    let signed_at = later(BEGUN_AT, 30);
+    assert_eq!(
+        h.raw(&begin(&session_id(0x60)), &behind),
+        Err(Code::TemporarilyUnavailable)
+    );
+    let poll = h.call(&read_enrollment(1, &signed_at), &behind).unwrap();
+    assert_eq!(poll["sessions"][0]["sessionId"], json!(session));
+    let vetoed = h.call(&veto(&session, 2, &signed_at), &behind).unwrap();
+    assert_eq!(vetoed["newState"], "cancelled");
+    // Recorded at the highest time seen, never at the stepped-back one.
+    assert_eq!(vetoed["recordedAt"], BEGUN_AT);
+    assert_eq!(
+        h.raw(&read_recovery(&session, 3, &signed_at), &behind),
+        Err(Code::TemporarilyUnavailable)
+    );
+    let closed = h.call(&close(4, &signed_at), &behind).unwrap();
+    assert_eq!(closed["newState"], "closed");
+}
+
 // ---------------------------------------------------------------------------
 // Tombstones, attempts, clock
 
@@ -807,9 +835,9 @@ fn requests_must_be_addressed_and_signed_correctly() {
     h.enroll();
     let now = later(ENROLLED_AT, 60);
 
-    // A clock behind the highest recorded time refuses every change.
+    // A clock behind the highest recorded time refuses what grants authority.
     assert_eq!(
-        h.raw(&read_enrollment(1, ENROLLED_AT), &later(ENROLLED_AT, -1)),
+        h.raw(&begin(&session_id(9)), &later(ENROLLED_AT, -1)),
         Err(Code::TemporarilyUnavailable)
     );
 

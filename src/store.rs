@@ -41,6 +41,16 @@ pub const REFUSED: [(&str, Code); 4] = [
     ("rotate-enrollment", Code::InvalidRequest),
 ];
 
+/// Operations that only report state or take authority away: the holder's
+/// poll, cancellation or veto, revocation and closure. A clock set back does
+/// not stop them, and the service keeps capacity for them under load.
+pub const PROTECTIVE: [&str; 4] = [
+    "read-enrollment",
+    "cancel-recovery",
+    "revoke-enrollment",
+    "close-enrollment",
+];
+
 const CHALLENGE_LIFETIME_SECS: i64 = 15 * 60;
 /// Unused challenges one invitation may have outstanding.
 const MAX_OPEN_CHALLENGES: i64 = 4;
@@ -268,17 +278,33 @@ impl Store {
         }
     }
 
-    /// The write transaction every operation runs in. Refuses a clock behind
-    /// the highest time already recorded, and returns that floor.
+    /// The write transaction an operation that grants or uses authority runs
+    /// in. Refuses a clock behind the highest time already recorded, and
+    /// returns that floor.
     fn transaction(&mut self, now: i64) -> Result<(Transaction<'_>, i64), Code> {
+        let (tx, floor) = self.begin(now)?;
+        if now < floor {
+            return Err(Code::TemporarilyUnavailable);
+        }
+        Ok((tx, floor))
+    }
+
+    /// The write transaction of a [`PROTECTIVE`] operation. A clock behind
+    /// the highest recorded time runs it at that time instead of refusing:
+    /// a veto must not wait for a broken clock. Returns the time to use.
+    fn protective_transaction(&mut self, now: i64) -> Result<(Transaction<'_>, i64), Code> {
+        let (tx, floor) = self.begin(now)?;
+        Ok((tx, now.max(floor)))
+    }
+
+    /// Open a write transaction and raise the clock's high-water mark to
+    /// `now`, never lower it. Returns the mark as it was.
+    fn begin(&mut self, now: i64) -> Result<(Transaction<'_>, i64), Code> {
         let tx = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let floor: i64 = tx.query_row("SELECT high_water FROM clock", [], |row| row.get(0))?;
-        if now < floor {
-            return Err(Code::TemporarilyUnavailable);
-        }
-        tx.execute("UPDATE clock SET high_water = ?1", [now])?;
+        tx.execute("UPDATE clock SET high_water = max(high_water, ?1)", [now])?;
         Ok((tx, floor))
     }
 
@@ -461,7 +487,7 @@ impl Store {
         signed: Signed,
         now: i64,
     ) -> Result<Vec<u8>, Code> {
-        let (tx, _) = self.transaction(now)?;
+        let (tx, now) = self.protective_transaction(now)?;
         let row = load_current_enrollment(&tx, &signed.target)?.ok_or(Code::InvalidRequest)?;
         let enrollment = &row.enrollment;
         verify_signature(&signed, &enrollment.authorization_key)?;
@@ -675,7 +701,7 @@ impl Store {
             _ => return Err(Code::InvalidRequest),
         };
         let scope = Scope::session(&signed.target);
-        let (tx, _) = self.transaction(now)?;
+        let (tx, now) = self.protective_transaction(now)?;
         let session = load_session(&tx, &signed.target)?.ok_or(Code::InvalidRequest)?;
         let row = session.enrollment(&tx)?;
         let key = if by_holder {
@@ -725,7 +751,7 @@ impl Store {
         signed: Signed,
         now: i64,
     ) -> Result<Vec<u8>, Code> {
-        let (tx, _) = self.transaction(now)?;
+        let (tx, now) = self.protective_transaction(now)?;
         let row = load_current_enrollment(&tx, &signed.target)?.ok_or(Code::InvalidRequest)?;
         let enrollment = &row.enrollment;
         let scope = Scope::enrollment(enrollment);
