@@ -214,8 +214,11 @@ impl Trustee {
             "offers": [{
                 "offerId": "free-v1",
                 "model": "free",
-                "service": "Custody of one SLIP-0039 share per enrollment slot, released \
-                    under the enrolled policy",
+                // An object, as whitepaper §16 shows and Onym clients decode it.
+                "service": {
+                    "custody": "one SLIP-0039 share per enrollment slot",
+                    "release": "to a fresh destination, under the enrolled policy",
+                },
                 "recoveryFees": "none",
                 "lapse": "none",
                 "export": "unavailable",

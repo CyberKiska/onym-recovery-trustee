@@ -1096,6 +1096,13 @@ fn manifests_are_signed_and_stay_valid() {
         value["operator"],
         json!(format!("onym:key:{}", hex::encode(operator)))
     );
+    // The offer spine Onym clients decode: an ID, a model, a service object.
+    let offer = &value["offers"][0];
+    assert_eq!(
+        (&offer["offerId"], &offer["model"]),
+        (&json!("free-v1"), &json!("free"))
+    );
+    assert!(offer["service"].is_object());
 
     // Valid 60 to 90 days ahead, on a grid: the same bytes until it moves.
     let valid_until = at(value["validUntil"].as_str().unwrap());
