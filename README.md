@@ -200,6 +200,47 @@ pip install --require-hashes -r tools/requirements.txt
 python3 tools/client.py share-fixtures               # SLIP-0039 fixtures
 ```
 
+## Conformance
+
+What the contract's fixture lists ask for, and what shows it here: a Rust
+test (unit tests in `src/`, or `tests/`), or a step of the end-to-end check
+(`tools/e2e.py`, E2E below). **Covered** means that evidence exists for
+this implementation; **partial** and **not yet** say what is missing.
+
+[Recovery-Trustee.md](https://github.com/onymchat/onym-system/blob/main/recovery/Recovery-Trustee.md) §14:
+
+| # | Obligation | Status | Evidence |
+|---|---|---|---|
+| 1 | Canonical encoding and signatures | Covered | `discovery_canonical_fixtures_reproduce`, `binding_vectors_reproduce_and_verify`, `verification_is_strict`, `encodings_have_one_spelling`, `duplicate_keys_are_refused_at_any_depth`, `numbers_are_integers_from_zero_to_two_to_the_53_minus_one`; Python reproduces the same bytes (E2E) |
+| 2 | Enrollment receipts and activation | Partial | Receipts signed after commit and read-back (`enrollment_needs_an_issued_unused_challenge`); the client requires all n (E2E). A receipt's `active` is local custody: activation signalling is proposed for draft-2 |
+| 3 | Bootstrap, current sequence, privacy, enumeration, loss | Partial | Uniform refusals and state told only to its holder (`enrollment_state_is_told_only_to_its_holder`, `sessions_are_verified_before_any_enrollment_lookup`); the client's encrypted map reopens at enrollment and is refused without every receipt (E2E). Trustee lookup is declared unavailable; rollback of a whole map set is not detected |
+| 4 | Stale sequence and artifact substitution | Covered | `every_enrollment_binding_is_enforced`, `artifact_header_must_match_the_enrollment`; altered artifact headers refused (E2E) |
+| 5 | Duplicate trustee or slot | Covered | One custody per challenge (`concurrent_enrollments_on_one_challenge_yield_one`); distinct slots, components and share indices checked by the client (E2E) |
+| 6 | Fresh destination-key binding | Covered | `release_seals_to_this_session_only`, `sessions_are_verified_before_any_enrollment_lookup` |
+| 7 | Retry idempotency and replay refusal | Covered | `retries_replay_outcomes_and_reads_are_single_use`, `an_enroll_retry_repeats_its_receipt_only_while_custody_is_live`, `tombstones_refuse_replays`, `random_sequences_keep_the_release_invariants` |
+| 8 | Cooldown, veto, notification, attempts, expiry, cancellation | Partial | `a_holder_veto_blocks_release`, `veto_and_release_serialize`, `attempts_are_bounded_and_counted_at_factor_evaluation`, `release_refuses_every_blocked_case`, `a_restart_during_cooldown_keeps_the_deadline`, `a_clock_set_back_stops_release_but_not_protection`, the model test. Notification is holder poll only |
+| 9 | Successful recovery; corrupted artifact | Covered | E2E: two shares rebuild the key and open the artifact, one does not; a foreign share or an altered header fails |
+| 10 | Rotation; superseded contributions unusable | Not yet | `rotate-enrollment` answers `invalid_request`; three-phase rotation is proposed for draft-2 |
+| 11 | Lapse, export, closure, retention | Partial | Closure: `tombstones_refuse_replays`; retention: `expired_custody_is_deleted_after_its_grace`; no lapse (free offer); export declared `export_unavailable` |
+| 12 | No secrets in errors, logs or receipts | Covered for the service and client | E2E scans error bodies and every log for planted secrets, and checks hostile trustees cannot write into the client's output. No UI exists to scan |
+
+[Recovery-Trustee-Shamir.md](https://github.com/onymchat/onym-system/blob/main/recovery/Recovery-Trustee-Shamir.md) §15:
+
+| # | Obligation | Status | Evidence |
+|---|---|---|---|
+| 1 | SLIP-0039 generation and combination vectors | Partial | Parsing: `official_slip39_vectors_decode_as_the_reference_does`, `generated_profile_shares_validate` (2-of-3, 3-of-5, 2-of-16, 16-of-16); combination is the client's, with Trezor's reference, 2-of-3 in E2E |
+| 2 | Holder-authorized envelopes and their refusals; challenges | Covered | `every_enrollment_binding_is_enforced`, `envelope_contents_are_checked`, `enrollment_needs_an_issued_unused_challenge` |
+| 3 | Share words and set validity | Partial | One share: the two SLIP-0039 tests above. Sets (mixed identifiers, duplicates): the client, repeated and foreign shares in E2E |
+| 4 | AES-256-GCM artifact vectors, every AAD binding changed | Partial | Altered `enrollmentSequence`, `artifactId` and `enrollmentId` refused (E2E); fixed vectors pending |
+| 5 | Enrollment and recovery HPKE vectors | Covered | `hpke_suite_matches_the_cfrg_vector`, `binding_vectors_reproduce_and_verify`, `sealed_values_open_only_with_the_same_info_and_key`, `low_order_points_are_refused`; Rust and Python open each other's output (E2E) |
+| 6 | Recovery map: encryption, import, bootstrap, rollback, loss | Partial | Sealed, reopened and checked receipt by receipt (E2E); rollback and loss are stated limits |
+| 7 | A share response replayed elsewhere | Covered | `release_seals_to_this_session_only`; the client checks every contribution binding (E2E) |
+| 8 | t complete, t − 1 do not | Covered | E2E |
+| 9 | Malicious well-formed share; final integrity | Covered (client) | A foreign share fails the artifact's AEAD (E2E); a trustee cannot detect it, by design |
+| 10 | Cooldown, veto, refusal, timeout, duplicate, late | Covered | The lifecycle tests of §14 item 8 and the model test |
+| 11 | Re-sharing on a change of threshold or trustees | Not yet | Depends on rotation |
+| 12 | Scans for secrets in logs, crashes and UI | Partial | Service logs and error bodies (E2E); core dumps off in the deployment; no UI exists |
+
 ## Limits
 
 - **Local state is trusted.** A trustee restored from an old snapshot, or
