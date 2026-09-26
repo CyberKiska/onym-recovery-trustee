@@ -539,6 +539,18 @@ fn a_restart_during_cooldown_keeps_the_deadline() {
 }
 
 #[test]
+fn an_enroll_retry_repeats_its_receipt_only_while_custody_is_live() {
+    let mut h = Harness::new();
+    let challenge = h.challenge(ENROLLED_AT);
+    let request = enroll_request(&challenge);
+    let receipt = h.raw(&request, ENROLLED_AT).unwrap();
+    let parsed = wire::parse(&receipt).unwrap();
+    let expires_at = parsed["expiresAt"].as_str().unwrap();
+    assert_eq!(h.raw(&request, &later(expires_at, -1)), Ok(receipt));
+    assert_eq!(h.raw(&request, expires_at), Err(Code::EnrollmentExpired));
+}
+
+#[test]
 fn retries_replay_outcomes_and_reads_are_single_use() {
     let mut h = Harness::new();
     h.enroll();

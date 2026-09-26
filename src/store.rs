@@ -383,21 +383,24 @@ impl Store {
 
         let (tx, _) = self.transaction(now)?;
         // The challenge is the request ID: a retry gets the recorded outcome.
-        let recorded: Option<(String, String)> = tx
+        let recorded: Option<String> = tx
             .query_row(
-                "SELECT request_digest, status FROM enrollments WHERE challenge = ?1",
+                "SELECT request_digest FROM enrollments WHERE challenge = ?1",
                 [&challenge],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| row.get(0),
             )
             .optional()?;
-        if let Some((digest, status)) = recorded {
+        if let Some(digest) = recorded {
+            if digest != request_digest {
+                return Err(Code::RequestConflict);
+            }
+            // Identical bytes, so the context names the recorded row. Its
+            // receipt is repeated only while that custody is live: never for
+            // a tombstone, a superseded sequence or an expired term.
+            let row = load_enrollment(&tx, &context.enrollment_id, context.enrollment_sequence)?;
             drop(tx);
-            return match (digest == request_digest, status.as_str()) {
-                (false, _) => Err(Code::RequestConflict),
-                // A tombstone never answers as live custody.
-                (true, "revoked" | "closed") => Err(Code::EnrollmentRevoked),
-                (true, _) => self.enrollment_receipt(trustee, &challenge, &sealed, &artifact),
-            };
+            state::usable(&row.state(), now)?;
+            return self.enrollment_receipt(trustee, &challenge, &sealed, &artifact);
         }
 
         // Only a challenge this trustee issued, unexpired and unused, for an

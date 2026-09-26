@@ -179,7 +179,8 @@ pub fn release(
     })
 }
 
-fn usable(enrollment: &EnrollmentState, now: i64) -> Result<(), Code> {
+/// Custody that is still live at `now`, or the code saying why not.
+pub fn usable(enrollment: &EnrollmentState, now: i64) -> Result<(), Code> {
     match enrollment.status {
         EnrollmentStatus::Revoked | EnrollmentStatus::Closed => Err(Code::EnrollmentRevoked),
         EnrollmentStatus::Superseded => Err(Code::StaleEnrollmentSequence),
