@@ -18,7 +18,7 @@ use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use axum::Router;
 use axum::body::Bytes;
@@ -56,6 +56,10 @@ const KEY_FILE_BYTES: usize = 512;
 /// [`store::PROTECTIVE`] operations.
 const ADMITTED: usize = 32;
 const RESERVED: usize = 8;
+
+/// How often expired custody is deleted, and how much at most each time.
+const SWEEP_EVERY: Duration = Duration::from_secs(3_600);
+const SWEEP_LIMIT: usize = 256;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -116,6 +120,7 @@ fn serve() -> Result<(), String> {
         clock: Clock::start().map_err(|code| code.to_string())?,
         admission: Admission::new(ADMITTED, RESERVED),
     });
+    let sweeper = app.clone();
     let router = Router::new()
         .route("/health", get(health))
         .route("/ready", get(ready))
@@ -126,6 +131,7 @@ fn serve() -> Result<(), String> {
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_io()
+        .enable_time()
         .build()
         .map_err(|error| error.to_string())?;
     runtime.block_on(async {
@@ -133,6 +139,7 @@ fn serve() -> Result<(), String> {
             .await
             .map_err(|error| format!("{}: {error}", config.bind))?;
         let stop = stop_signal().map_err(|error| format!("signals: {error}"))?;
+        tokio::spawn(sweep_expired(sweeper));
         axum::serve(listener, router)
             .with_graceful_shutdown(stop)
             .await
@@ -140,6 +147,27 @@ fn serve() -> Result<(), String> {
     })?;
     eprintln!("stopped");
     Ok(())
+}
+
+/// Delete expired custody at startup and then hourly, as one bounded store
+/// call under the global lock. Logs a count, never an identifier.
+async fn sweep_expired(app: Arc<App>) {
+    let mut every = tokio::time::interval(SWEEP_EVERY);
+    loop {
+        every.tick().await;
+        let app = app.clone();
+        let swept = tokio::task::spawn_blocking(move || {
+            let mut store = app.store.lock().map_err(|_| Code::TemporarilyUnavailable)?;
+            store.sweep(app.clock.now()?, SWEEP_LIMIT)
+        })
+        .await;
+        match swept {
+            Ok(Ok(0)) => {}
+            Ok(Ok(count)) => eprintln!("sweep: deleted the custody of {count} expired enrollments"),
+            Ok(Err(code)) => eprintln!("sweep: skipped, {code}"),
+            Err(_) => eprintln!("sweep: skipped"),
+        }
+    }
 }
 
 /// Resolves on SIGTERM (`docker stop`) or SIGINT. The service is PID 1 in

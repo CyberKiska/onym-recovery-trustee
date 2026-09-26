@@ -28,10 +28,11 @@ getrandom = "0.4"
 # (sequences, at most 2^53 - 1) convert checked.
 rusqlite = { version = "0.40", default-features = false, features = ["bundled", "fallible_uint"] }
 # HTTP/1 only, behind a TLS proxy; one current-thread runtime that stops
-# gracefully on SIGTERM (`signal`, `macros`) and bounds admitted requests
-# (`sync`). Store work runs on its blocking threads.
+# gracefully on SIGTERM (`signal`, `macros`), bounds admitted requests
+# (`sync`) and sweeps expired custody (`time`). Store work runs on its
+# blocking threads.
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
-tokio = { version = "1.53", default-features = false, features = ["rt", "net", "signal", "macros", "sync"] }
+tokio = { version = "1.53", default-features = false, features = ["rt", "net", "signal", "macros", "sync", "time"] }
 
 # A panic ends the process: no unwinding past half-done work, no poisoned
 # state left behind. HPKE sealing panics if the OS RNG fails (see crypto.rs).

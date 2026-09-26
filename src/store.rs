@@ -18,7 +18,7 @@ use serde_json::{Value, json};
 
 use crate::state::{self, EnrollmentState, EnrollmentStatus, Release, SessionState, SessionStatus};
 use crate::wire::{self, Code, Notice, Receipt, Signed};
-use crate::{Enrollment, Trustee, crypto};
+use crate::{EXPIRED_CUSTODY_KEPT_SECS, Enrollment, Trustee, crypto};
 
 /// Operations [`Store::handle`] serves.
 pub const OPERATIONS: [&str; 8] = [
@@ -799,12 +799,62 @@ impl Store {
         let state = |status| wire::enrollment_state(status, enrollment.expires_at, now);
         record_outcome(&tx, &scope, &signed, state(row.status), state(status), now)?;
         tx.commit()?;
-        // Best effort: move the deletion into the database file and empty the
-        // WAL, which still holds the enrolled pages. Freed disk blocks remain.
+        self.checkpoint();
+        self.outcome_receipt(trustee, &scope, &signed.request_id)
+    }
+
+    /// Delete the sealed share and artifact of enrollments whose term ended
+    /// more than [`EXPIRED_CUSTODY_KEPT_SECS`] ago, at most `limit` per call,
+    /// as revocation deletes them; the non-secret bindings stay. A clock set
+    /// back refuses, like every change. Returns how many were deleted.
+    pub fn sweep(&mut self, now: i64, limit: usize) -> Result<usize, Code> {
+        let (tx, _) = self.transaction(now)?;
+        // ponytail: scans live rows for their term; an indexed expiry column
+        // if enrollments number in the millions.
+        let mut expired = Vec::new();
+        {
+            let mut statement = tx.prepare(
+                "SELECT enrollment_id, sequence, record FROM enrollments
+                 WHERE sealed_envelope IS NOT NULL",
+            )?;
+            let mut rows = statement.query([])?;
+            while let Some(row) = rows.next()? {
+                let record: String = row.get(2)?;
+                let enrollment: Enrollment =
+                    serde_json::from_str(&record).map_err(|_| Code::TemporarilyUnavailable)?;
+                if enrollment
+                    .expires_at
+                    .saturating_add(EXPIRED_CUSTODY_KEPT_SECS)
+                    <= now
+                {
+                    expired.push((row.get::<_, String>(0)?, row.get::<_, u64>(1)?));
+                    if expired.len() == limit {
+                        break;
+                    }
+                }
+            }
+        }
+        for (enrollment_id, sequence) in &expired {
+            tx.execute(
+                "UPDATE enrollments SET sealed_envelope = NULL, protected_artifact = NULL
+                 WHERE enrollment_id = ?1 AND sequence = ?2",
+                params![enrollment_id, sequence],
+            )?;
+        }
+        tx.commit()?;
+        if !expired.is_empty() {
+            self.checkpoint();
+        }
+        Ok(expired.len())
+    }
+
+    /// Best effort after deleting custody: move the deletion into the
+    /// database file and empty the WAL, which still holds the deleted pages.
+    /// Freed disk blocks remain.
+    fn checkpoint(&self) {
         let _ = self
             .connection
             .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()));
-        self.outcome_receipt(trustee, &scope, &signed.request_id)
     }
 
     /// An identical retry gets the recorded receipt, however late it comes;

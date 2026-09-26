@@ -67,10 +67,16 @@ pub struct Service {
 const MANIFEST_PERIOD_SECS: i64 = 30 * 86_400;
 
 const RETENTION: &str = "The sealed share and artifact are kept until the holder revokes or \
-    closes the enrollment. That removes them from the live database at once; copies in freed \
-    disk blocks, snapshots or backups are not erased. A tombstone keeps the non-secret \
-    bindings, and released contributions stay as ciphertext only the candidate can open. \
-    Expired enrollments are not swept yet.";
+    closes the enrollment, or for 30 days after its term ends. Revocation and closure remove \
+    them from the live database at once, expiry within the hour after those 30 days; copies \
+    in freed disk blocks, snapshots or backups are not erased. A tombstone keeps the \
+    non-secret bindings, and released contributions stay as ciphertext only the candidate \
+    can open.";
+
+/// How long custody outlives an enrollment's term before it is deleted: the
+/// "30 days" of `RETENTION`. It also absorbs a clock set forward, which could
+/// otherwise delete live custody.
+pub const EXPIRED_CUSTODY_KEPT_SECS: i64 = 30 * 86_400;
 
 /// One trustee: its component ID, keys and limits.
 pub struct Trustee {

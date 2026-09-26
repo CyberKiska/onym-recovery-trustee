@@ -41,8 +41,8 @@ Done:
 - **Durable lifecycle in SQLite:** invitations and single-use challenges,
   custody with read-back before the receipt, recovery sessions with
   attempts and a cooldown, holder-poll notices, veto and cancellation,
-  revocation and closure as tombstones, replay nonces and idempotent
-  outcomes.
+  revocation and closure as tombstones, expired custody swept, replay
+  nonces and idempotent outcomes.
 - **HTTP service:** a signed manifest and one request endpoint; it drains
   on SIGTERM and refuses a database that belongs to another key.
 - **Deployment:** a container image and three trustees behind Caddy, with
@@ -212,7 +212,8 @@ python3 tools/client.py share-fixtures               # SLIP-0039 fixtures
   session. It is evidence of possession, not an identity-verification
   ceremony.
 - **Deletion is logical.** Revoke and close remove custody from the live
-  database at once and checkpoint its WAL; freed disk blocks, snapshots and
+  database at once and checkpoint its WAL; an hourly sweep does the same
+  30 days after an enrollment's term ends. Freed disk blocks, snapshots and
   backups keep what they had. A released contribution cannot be recalled.
 - **No per-client rate limiting in the service.** Bodies are bounded,
   attempts are per enrollment, and at most 32 requests reach the store at

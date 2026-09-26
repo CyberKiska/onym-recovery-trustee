@@ -551,6 +551,34 @@ fn an_enroll_retry_repeats_its_receipt_only_while_custody_is_live() {
 }
 
 #[test]
+fn expired_custody_is_deleted_after_its_grace() {
+    let db = TempDb::new();
+    let mut h = Harness::with(db.store());
+    let (enroll, _) = h.enroll();
+    let receipt = wire::parse(&h.raw(&enroll, ENROLLED_AT).unwrap()).unwrap();
+    let ended = at(receipt["expiresAt"].as_str().unwrap());
+    let grace = onym_recovery_trustee::EXPIRED_CUSTODY_KEPT_SECS;
+
+    assert_eq!(h.store.sweep(ended + grace - 1, 16), Ok(0));
+    assert_eq!(h.store.sweep(ended + grace, 16), Ok(1));
+    assert_eq!(h.store.sweep(ended + grace, 16), Ok(0));
+
+    let custody: (Option<Vec<u8>>, Option<Vec<u8>>) = rusqlite::Connection::open(&db.0)
+        .unwrap()
+        .query_row(
+            "SELECT sealed_envelope, protected_artifact FROM enrollments",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(custody, (None, None), "expired custody is deleted");
+    let now = wire::format_timestamp(ended + grace).unwrap();
+    let poll = h.call(&read_enrollment(1, &now), &now).unwrap();
+    assert_eq!(poll["newState"], "expired");
+    assert_eq!(h.raw(&enroll, &now), Err(Code::EnrollmentExpired));
+}
+
+#[test]
 fn retries_replay_outcomes_and_reads_are_single_use() {
     let mut h = Harness::new();
     h.enroll();
