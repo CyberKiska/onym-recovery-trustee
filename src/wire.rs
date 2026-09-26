@@ -120,10 +120,12 @@ impl std::error::Error for Code {}
 // ---------------------------------------------------------------------------
 // Canonical JSON (the Discovery §3 rules)
 
-/// Parse a document whose top level is an object, refusing duplicate keys
-/// at any depth; serde_json alone would keep the last one silently.
+/// Parse a document whose top level is an object, refusing what Discovery
+/// §3 refuses at any depth: a duplicate key (serde_json alone would keep the
+/// last one silently) and any number but an integer from 0 to 2^53 - 1.
+/// Schemas and their bounds are the typed objects' to check.
 pub fn parse(raw: &[u8]) -> Option<Value> {
-    reject_duplicate_keys(raw)?;
+    check_structure(raw)?;
     serde_json::from_slice(raw).ok().filter(Value::is_object)
 }
 
@@ -151,7 +153,7 @@ pub(crate) fn take_string(value: &mut Value, field: &str) -> Option<String> {
     }
 }
 
-fn reject_duplicate_keys(raw: &[u8]) -> Option<()> {
+fn check_structure(raw: &[u8]) -> Option<()> {
     use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
 
     struct Unique;
@@ -171,14 +173,19 @@ fn reject_duplicate_keys(raw: &[u8]) -> Option<()> {
         fn visit_bool<E>(self, _: bool) -> Result<(), E> {
             Ok(())
         }
-        fn visit_i64<E>(self, _: i64) -> Result<(), E> {
+        // serde_json reports non-negative integers as u64, negative ones
+        // (and -0) as i64, and anything with a fraction or exponent as f64.
+        fn visit_i64<E: serde::de::Error>(self, _: i64) -> Result<(), E> {
+            Err(E::custom("negative number"))
+        }
+        fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<(), E> {
+            if value > MAX_SAFE_INTEGER {
+                return Err(E::custom("integer above 2^53 - 1"));
+            }
             Ok(())
         }
-        fn visit_u64<E>(self, _: u64) -> Result<(), E> {
-            Ok(())
-        }
-        fn visit_f64<E>(self, _: f64) -> Result<(), E> {
-            Ok(())
+        fn visit_f64<E: serde::de::Error>(self, _: f64) -> Result<(), E> {
+            Err(E::custom("not an integer"))
         }
         fn visit_str<E>(self, _: &str) -> Result<(), E> {
             Ok(())
@@ -847,6 +854,27 @@ mod tests {
         assert!(parse(br#"{"a":1} trailing"#).is_none());
         assert!(parse(br#"["not an object"]"#).is_none());
         assert!(parse(br#"{"a":1,"b":{"a":1}}"#).is_some());
+    }
+
+    #[test]
+    fn numbers_are_integers_from_zero_to_two_to_the_53_minus_one() {
+        for accepted in [br#"{"a":0}"#.as_slice(), br#"{"a":[9007199254740991]}"#] {
+            assert!(parse(accepted).is_some());
+        }
+        for refused in [
+            br#"{"a":-1}"#.as_slice(),
+            br#"{"a":-0}"#,
+            br#"{"a":1.0}"#,
+            br#"{"a":1e3}"#,
+            br#"{"a":{"b":[9007199254740992]}}"#,
+            br#"{"a":18446744073709551616}"#,
+        ] {
+            assert!(
+                parse(refused).is_none(),
+                "{}",
+                String::from_utf8_lossy(refused)
+            );
+        }
     }
 
     /// Sorted output is what makes `canonical` canonical. Enabling

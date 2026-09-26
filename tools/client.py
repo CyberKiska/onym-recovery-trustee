@@ -102,19 +102,26 @@ def canonical(value):
 
 
 def parse(raw):
-    """A JSON object, refusing duplicate keys at any depth, floats, non-finite
-    numbers and nesting too deep for the parser."""
+    """A JSON object, refusing as Rust does: duplicate keys at any depth, any
+    number but an integer from 0 to 2^53 - 1, and nesting too deep for the
+    parser."""
 
     def unique(pairs):
         if len({key for key, _ in pairs}) != len(pairs):
             raise ValueError("duplicate key")
         return dict(pairs)
 
-    def refuse(constant):
-        raise ValueError(f"not an integer: {constant}")
+    def integer(text):
+        if text.startswith("-") or int(text) > MAX_SAFE_INTEGER:
+            raise ValueError("not an unsigned integer")
+        return int(text)
+
+    def refuse(_):
+        raise ValueError("not an integer")
 
     try:
-        value = json.loads(raw, object_pairs_hook=unique, parse_float=refuse, parse_constant=refuse)
+        value = json.loads(raw, object_pairs_hook=unique, parse_int=integer, parse_float=refuse,
+                           parse_constant=refuse)
     except RecursionError:
         raise ValueError("nested too deeply") from None
     if not isinstance(value, dict):

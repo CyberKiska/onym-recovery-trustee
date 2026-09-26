@@ -136,6 +136,9 @@ def check(servers, work):
     for spelling in ("2026-10-01T00:00:00.5Z", "2026-10-01T00:00:00+00:00", "2026-1-01T00:00:00Z"):
         assert raises(ValueError, lambda: c.seconds(spelling)), spelling
     assert raises(ValueError, lambda: c.unb64("AB==")) and raises(ValueError, lambda: c.uint(True))
+    for number in (b"-1", b"-0", b"1.0", b"1e3", b"9007199254740992", b"NaN"):
+        assert raises(ValueError, lambda: c.parse(b'{"a":' + number + b"}")), number
+    assert c.parse(b'{"a":9007199254740991}') == {"a": 9007199254740991}
     ok("Python's stdlib JSON reproduces Discovery's canonical bytes; strict encodings match Rust's")
 
     journal = work / "journal.json"
