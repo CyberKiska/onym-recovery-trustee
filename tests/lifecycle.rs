@@ -160,13 +160,13 @@ fn signed(
     target: (&str, &str),
     by: Option<&str>,
     key: &SigningKey,
-    request: u8,
+    request: u64,
     issued_at: &str,
 ) -> Vec<u8> {
     let mut value = json!({
         "requestVersion": 1,
         "operation": operation,
-        "requestId": hex::encode([request; 32]),
+        "requestId": format!("{request:064x}"),
         "componentId": COMPONENT,
         "issuedAt": issued_at,
     });
@@ -182,7 +182,7 @@ fn enrollment_id() -> String {
     "e1".repeat(32)
 }
 
-fn read_enrollment(request: u8, issued_at: &str) -> Vec<u8> {
+fn read_enrollment(request: u64, issued_at: &str) -> Vec<u8> {
     signed(
         "read-enrollment",
         ("enrollmentId", &enrollment_id()),
@@ -193,7 +193,7 @@ fn read_enrollment(request: u8, issued_at: &str) -> Vec<u8> {
     )
 }
 
-fn read_recovery(session: &str, request: u8, issued_at: &str) -> Vec<u8> {
+fn read_recovery(session: &str, request: u64, issued_at: &str) -> Vec<u8> {
     signed(
         "read-recovery",
         ("sessionId", session),
@@ -204,7 +204,7 @@ fn read_recovery(session: &str, request: u8, issued_at: &str) -> Vec<u8> {
     )
 }
 
-fn veto(session: &str, request: u8, issued_at: &str) -> Vec<u8> {
+fn veto(session: &str, request: u64, issued_at: &str) -> Vec<u8> {
     signed(
         "cancel-recovery",
         ("sessionId", session),
@@ -215,7 +215,7 @@ fn veto(session: &str, request: u8, issued_at: &str) -> Vec<u8> {
     )
 }
 
-fn close(request: u8, issued_at: &str) -> Vec<u8> {
+fn close(request: u64, issued_at: &str) -> Vec<u8> {
     signed(
         "close-enrollment",
         ("enrollmentId", &enrollment_id()),
@@ -741,6 +741,154 @@ fn a_clock_set_back_stops_release_but_not_protection() {
 }
 
 // ---------------------------------------------------------------------------
+// Model: random operation sequences against the release invariants
+
+/// xorshift64*: deterministic, so a failing seed replays exactly.
+struct Rng(u64);
+
+impl Rng {
+    fn below(&mut self, bound: u64) -> u64 {
+        self.0 ^= self.0 >> 12;
+        self.0 ^= self.0 << 25;
+        self.0 ^= self.0 >> 27;
+        self.0.wrapping_mul(0x2545_F491_4F6C_DD1D) % bound
+    }
+}
+
+/// What the model learned about one session from the answers it got.
+#[derive(Default)]
+struct Seen {
+    begun: Option<Vec<u8>>,
+    cooldown_ends_at: Option<i64>,
+    ended: bool,
+    released: Option<Value>,
+}
+
+/// Random begins, reads, vetoes, cancellations, polls, closures and clock
+/// steps, forward and back. After every answer: nothing is released before
+/// its cooldown, past its expiry, after a veto, cancellation or closure, or
+/// with the clock behind; a release is always the same bytes; a retried
+/// begin repeats its receipt; attempts stay within the policy's three; and
+/// polls and vetoes still work while the clock is behind by up to the skew.
+#[test]
+fn random_sequences_keep_the_release_invariants() {
+    const SESSIONS: usize = 6;
+    let session_expires_at = at("2026-10-06T00:00:00Z");
+    for seed in 1..=16u64 {
+        let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15));
+        let mut h = Harness::new();
+        h.enroll();
+        let mut seen: Vec<Seen> = (0..SESSIONS).map(|_| Seen::default()).collect();
+        let (mut now, mut floor, mut closed, mut attempts) = (at(BEGUN_AT), 0, false, 0);
+        for step in 0..160u64 {
+            let here = format!("seed {seed}, step {step}");
+            let slot = rng.below(SESSIONS as u64) as usize;
+            let id = session_id(0x40 + slot as u8);
+            let issued = wire::format_timestamp(now).unwrap();
+            let (behind, request) = (now < floor, step + 1);
+            // Within the skew, protective operations must be served.
+            let protected = floor - now <= 300;
+            match rng.below(8) {
+                0 | 1 => {
+                    // The last slot's factor is wrong: refused, yet an attempt.
+                    let signer = if slot == SESSIONS - 1 {
+                        impostor()
+                    } else {
+                        factor()
+                    };
+                    if let Ok(bytes) = h.raw(&begin_request(&id, &signer, |_| {}), &issued) {
+                        let entry = &mut seen[slot];
+                        if let Some(first) = &entry.begun {
+                            assert_eq!(
+                                first, &bytes,
+                                "{here}: a retried begin repeats its receipt"
+                            );
+                        } else {
+                            assert!(
+                                !behind && !closed,
+                                "{here}: admitted behind the clock or closed"
+                            );
+                            attempts += 1;
+                            assert!(
+                                attempts <= 3,
+                                "{here}: more attempts than the policy allows"
+                            );
+                            let receipt = wire::parse(&bytes).unwrap();
+                            if receipt["newState"] == "cooling_down" {
+                                let ends = receipt["cooldownEndsAt"].as_str().unwrap();
+                                entry.cooldown_ends_at = Some(at(ends));
+                            }
+                            entry.begun = Some(bytes);
+                        }
+                        floor = floor.max(now);
+                    }
+                }
+                2 | 3 => {
+                    if let Ok(receipt) = h.call(&read_recovery(&id, request, &issued), &issued) {
+                        if let Some(contribution) = receipt.get("contribution") {
+                            let entry = &seen[slot];
+                            let cooldown = entry.cooldown_ends_at.expect("admitted");
+                            assert!(now >= cooldown, "{here}: released before the cooldown");
+                            assert!(now < session_expires_at, "{here}: released after expiry");
+                            assert!(!entry.ended && !closed, "{here}: released after an end");
+                            assert!(!behind, "{here}: released with the clock behind");
+                            if let Some(first) = &entry.released {
+                                assert_eq!(
+                                    first, contribution,
+                                    "{here}: a release is one set of bytes"
+                                );
+                            }
+                            seen[slot].released = Some(contribution.clone());
+                        }
+                        floor = floor.max(now);
+                    }
+                }
+                op @ (4 | 5) => {
+                    let (by, key) = if op == 4 {
+                        ("holder", holder())
+                    } else {
+                        ("candidate", proof())
+                    };
+                    let body = signed(
+                        "cancel-recovery",
+                        ("sessionId", &id),
+                        Some(by),
+                        &key,
+                        request,
+                        &issued,
+                    );
+                    match h.call(&body, &issued) {
+                        Ok(receipt) => {
+                            seen[slot].ended |= receipt["newState"] == "cancelled";
+                            floor = floor.max(now);
+                        }
+                        Err(code) => {
+                            assert!(!(protected && seen[slot].begun.is_some()), "{here}: {code}")
+                        }
+                    }
+                }
+                6 => match h.call(&read_enrollment(request, &issued), &issued) {
+                    Ok(_) => floor = floor.max(now),
+                    Err(code) => assert!(!protected, "{here}: holder poll refused, {code}"),
+                },
+                _ if rng.below(12) == 0 && h.call(&close(request, &issued), &issued).is_ok() => {
+                    closed = true;
+                    floor = floor.max(now);
+                }
+                _ => {}
+            }
+            // Begins land inside the admission window; later, time jumps
+            // ahead by up to six hours, or steps back by up to two minutes.
+            now += match (step < 40, rng.below(10)) {
+                (true, _) => rng.below(6) as i64,
+                (false, 0) => -(1 + rng.below(120) as i64),
+                (false, _) => rng.below(6 * 3_600) as i64,
+            };
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tombstones, attempts, clock
 
 #[test]
@@ -900,7 +1048,7 @@ fn requests_must_be_addressed_and_signed_correctly() {
     );
     // Signed by the right key, but addressed elsewhere or with a null
     // standing in for an absent field.
-    let resigned = |request: u8, edit: fn(&mut Value)| {
+    let resigned = |request: u64, edit: fn(&mut Value)| {
         let mut value = wire::parse(&read_enrollment(request, &now)).unwrap();
         value.as_object_mut().unwrap().remove("signature");
         edit(&mut value);

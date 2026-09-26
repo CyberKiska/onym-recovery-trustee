@@ -169,7 +169,10 @@ The lifecycle suite (`tests/lifecycle.rs`) drives `Store::handle` end to end:
 - a restart during cooldown keeping the deadline;
 - holder veto against release, raced on two connections;
 - tombstones refusing replays, custody gone from the database and its WAL,
-  and bounded attempts with signed refusals.
+  and bounded attempts with signed refusals;
+- random sequences of begins, reads, vetoes, cancellations, polls,
+  closures and clock steps, checked against the release invariants after
+  every answer, with fixed seeds so a failure replays.
 
 The end-to-end check runs the client against three trustee processes: 2-of-3
 enrollment read back from disk, cleanup of a failed enrollment, holder poll
